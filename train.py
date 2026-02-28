@@ -1,8 +1,8 @@
 import os
 
-# needed to prevent numpy from using a ton of memory in env processes and causing them to throttle each other
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-from rewards import VelocityPlayerToBallReward
+from rewards import VelocityPlayerToBallReward, InAirReward
+from metrics import CustomMetricsProvider
 
 def build_env():
     import numpy as np
@@ -29,7 +29,7 @@ def build_env():
     )
 
     spawn_opponents = True
-    team_size = 2
+    team_size = 1
     blue_team_size = team_size
     orange_team_size = team_size if spawn_opponents else 0
     action_repeat = 8
@@ -43,7 +43,7 @@ def build_env():
         TimeoutCondition(timeout_seconds=game_timeout_seconds),
     )
 
-    reward_fn = CombinedReward((GoalReward(), 10), (TouchReward(), 0.6), (VelocityPlayerToBallReward(), 0.3))
+    reward_fn = CombinedReward((GoalReward(), 10), (TouchReward(), 1), (VelocityPlayerToBallReward(), 0.3))
 
     obs_builder = DefaultObs(
         zero_padding=team_size,
@@ -72,6 +72,7 @@ def build_env():
         termination_cond=termination_condition,
         truncation_cond=truncation_condition,
         transition_engine=RocketSimEngine(),
+        shared_info_provider=CustomMetricsProvider(),
     )
 
 
@@ -93,8 +94,8 @@ if __name__ == "__main__":
         PPOAgentController,
         PPOAgentControllerConfigModel,
         PPOLearnerConfigModel,
-        PPOMetricsLogger,
     )
+    from metrics import CustomMetricsLogger
 
     from rlgym_learn import (
         BaseConfigModel,
@@ -137,22 +138,23 @@ if __name__ == "__main__":
                 action_space_serde_type=PyAnySerdeType.TUPLE(
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
+                shared_info_serde_type=PyAnySerdeType.DYNAMIC(),
             ),
             timestep_limit=1_000_000_000,  # Train for 1B steps
         ),
         process_config=ProcessConfigModel(
-            n_proc=24,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point
+            n_proc=24,  #num of parallel run environments.
             render=False
         ),
         agent_controllers_config={
             "PPO1": PPOAgentControllerConfigModel(
                 learner_config=PPOLearnerConfigModel(
-                    ent_coef=0.01,  # Sets the entropy coefficient used in the PPO algorithm
-                    actor_lr=5e-5,  # Sets the learning rate of the actor model
-                    critic_lr=5e-5,  # Sets the learning rate of the critic model
+                    ent_coef=0.01,
+                    actor_lr=5e-5,  
+                    critic_lr=5e-5, 
                 ),
                 experience_buffer_config=ExperienceBufferConfigModel(
-                    max_size=150_000,  # Sets the number of timesteps to store in the experience buffer. Old timesteps will be pruned to only store the most recently obtained timesteps.
+                    max_size=150_000, 
                     trajectory_processor_config=GAETrajectoryProcessorConfigModel(),
                 ),
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
@@ -180,7 +182,7 @@ if __name__ == "__main__":
                 actor_factory=actor_factory,
                 critic_factory=critic_factory,
                 experience_buffer=NumpyExperienceBuffer(GAETrajectoryProcessor()),
-                metrics_logger=WandbMetricsLogger(PPOMetricsLogger()),
+                metrics_logger=WandbMetricsLogger(CustomMetricsLogger()),
                 obs_standardizer=None,
             )
         },
