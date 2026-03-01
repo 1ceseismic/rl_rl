@@ -1,7 +1,7 @@
 import os
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward, SpeedReward
+from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward, SpeedReward, DenseSpeedReward, BoostManagementReward, TouchBallVelocityReward, OpponentProximityPenalty
 from metrics import CustomMetricsProvider
 
 def build_env():
@@ -45,13 +45,16 @@ def build_env():
     )
 
     reward_fn = CombinedReward(
-        (GoalRatioReward(), 10), 
-        (TouchReward(), 1), 
-        (VelocityPlayerToBallReward(), 0.4), 
-        (InAirReward(), 0.005), 
-        (FaceForwardReward(), 0.5),
-        (SpeedReward(), 0.1)
-
+        (GoalRatioReward(), 10),
+        (TouchReward(), 0.5),
+        (VelocityPlayerToBallReward(), 0.4),
+        (InAirReward(), 0.1),
+        (FaceForwardReward(), 0.4),
+        (SpeedReward(), 0.3),
+        (DenseSpeedReward(), 0.05),
+        (BoostManagementReward(), 0.05),
+        (TouchBallVelocityReward(), 1.0),
+        (OpponentProximityPenalty(), 0.1),
     )
 
     obs_builder = DefaultObs(
@@ -134,11 +137,17 @@ if __name__ == "__main__":
     def critic_factory(obs_space: DefaultObsSpaceType, device: str):
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
+    import socket
+    hostname = socket.gethostname()
+
     n_proc = 36 #1.5 cpu count i.e 24 * 1.5 = 36
     timestep_limit = 200_000_000   #default is 1 billion, 200mil is for initial chasing
-    lr = 2e-4      #2e-4 until silver, 1e-4 after 
+    lr = 2e-4      #2e-4 until silver, 1e-4 after
     ts_per_iter = 50_000
     exp_buf_steps = ts_per_iter*3  #default is 200k
+    stage = "stage2-rewards"
+    parent_checkpoint = "stage1-ball-chase-199M"
+    run_name = f"{stage}-{hostname}"
 
     # Create the config that will be used for the run
     config = LearningCoordinatorConfigModel(
@@ -161,13 +170,13 @@ if __name__ == "__main__":
         process_config=ProcessConfigModel(
             n_proc=n_proc,
             render=False,
-            render_delay=1/120,  #8/120 is default; for realtime (but halts rest of processes for learning by ~67ms)
+            render_delay=8/120,  #8/120 is default; for realtime (but halts rest of processes for learning by ~67ms)
         ),
         agent_controllers_config={
             "PPO1": PPOAgentControllerConfigModel(
-                run_name="stage1-chase-and-aerial",
+                run_name=run_name,
                 add_unix_timestamp=False,
-                checkpoint_load_folder="agent_controllers_checkpoints/PPO1/stage1-ball-chase-199M/1772282871964001445",
+                checkpoint_load_folder="agent_controllers_checkpoints/PPO1/stage1-ball-chase-199M/1772340045805232857",
                 learner_config=PPOLearnerConfigModel(
                     ent_coef=0.01,
                     actor_lr=lr,
@@ -180,8 +189,9 @@ if __name__ == "__main__":
                 ),
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     group="1v1-training",
-                    run="stage1-chase-and-aerial",
+                    run=run_name,
                     settings_kwargs={"entity": "rl_rlbot"},
+                    additional_wandb_run_config={"parent_checkpoint": parent_checkpoint},
                 ),
             )
         },

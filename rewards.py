@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Tuple
 
 from rlgym.api import AgentID, RewardFunction
 from rlgym.rocket_league.api import GameState
-from rlgym.rocket_league.common_values import CAR_MAX_SPEED, JUMP_MAX_TIME
+from rlgym.rocket_league.common_values import CAR_MAX_SPEED, BALL_MAX_SPEED, JUMP_MAX_TIME
 from rlgym.rocket_league.obs_builders import DefaultObs
 
 class VelocityPlayerToBallReward(RewardFunction[AgentID, GameState, float]):
@@ -93,6 +93,82 @@ class SpeedReward(RewardFunction[AgentID, GameState, float]):
     def _get_reward(self, agent: AgentID, state: GameState) -> float:
         car = state.cars[agent]
         return min(car.supersonic_time, 3.0) / 3.0
+
+
+class DenseSpeedReward(RewardFunction[AgentID, GameState, float]):
+    """Rewards any speed, not just supersonic. Fires every tick."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        speed = np.linalg.norm(state.cars[agent].physics.linear_velocity)
+        return speed / CAR_MAX_SPEED  # 0 = still, 1 = max speed
+
+
+class BoostManagementReward(RewardFunction[AgentID, GameState, float]):
+    """Penalizes hoarding boost while slow, rewards using boost to go fast."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        car = state.cars[agent]
+        boost = car.boost_amount / 100.0  # [0, 1]
+        speed = np.linalg.norm(car.physics.linear_velocity) / CAR_MAX_SPEED  # [0, 1]
+        # High boost + low speed = hoarding = negative
+        # Low boost + high speed = using it well = positive
+        return speed - boost  # range [-1, 1]
+
+
+class TouchBallVelocityReward(RewardFunction[AgentID, GameState, float]):
+    """On ball touch, rewards based on how fast the ball is moving. Encourages hard hits (flips) over gentle nudges."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        if state.cars[agent].ball_touches > 0:
+            ball_speed = np.linalg.norm(state.ball.linear_velocity)
+            return ball_speed / BALL_MAX_SPEED  # 0 = dead ball, 1 = max speed
+        return 0.0
+
+
+class OpponentProximityPenalty(RewardFunction[AgentID, GameState, float]):
+    """Penalizes being close to opponent while far from ball. Breaks rule 1 / car hugging."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        car = state.cars[agent]
+        my_pos = car.physics.position
+        ball_dist = np.linalg.norm(state.ball.position - my_pos)
+
+        # Find opponent
+        for other_id, other_car in state.cars.items():
+            if other_car.team_num != car.team_num:
+                opp_dist = np.linalg.norm(other_car.physics.position - my_pos)
+                # Close to opponent (<500uu ≈ ~2.5 car lengths) and far from ball (>1000uu)
+                if opp_dist < 500 and ball_dist > 1000:
+                    return -1.0  # flat penalty
+        return 0.0
 
 
 class GoalRatioReward(RewardFunction):
