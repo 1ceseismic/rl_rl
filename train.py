@@ -1,7 +1,7 @@
 import os
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward
+from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward, SpeedReward
 from metrics import CustomMetricsProvider
 
 def build_env():
@@ -44,7 +44,15 @@ def build_env():
         TimeoutCondition(timeout_seconds=game_timeout_seconds),
     )
 
-    reward_fn = CombinedReward((GoalRatioReward(), 10), (TouchReward(), 1), (VelocityPlayerToBallReward(), 0.4), (InAirReward(), 0.005), (FaceForwardReward(), 0.5))
+    reward_fn = CombinedReward(
+        (GoalRatioReward(), 10), 
+        (TouchReward(), 1), 
+        (VelocityPlayerToBallReward(), 0.4), 
+        (InAirReward(), 0.005), 
+        (FaceForwardReward(), 0.5),
+        (SpeedReward(), 0.1)
+
+    )
 
     obs_builder = DefaultObs(
         zero_padding=team_size,
@@ -152,7 +160,7 @@ if __name__ == "__main__":
         ),
         process_config=ProcessConfigModel(
             n_proc=n_proc,
-            render=True,
+            render=False,
             render_delay=1/120,  #8/120 is default; for realtime (but halts rest of processes for learning by ~67ms)
         ),
         agent_controllers_config={

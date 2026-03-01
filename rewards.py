@@ -80,6 +80,21 @@ class FaceForwardReward(RewardFunction[AgentID, GameState, float]):
 
 
 
+class SpeedReward(RewardFunction[AgentID, GameState, float]):
+    """Rewards being supersonic."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        car = state.cars[agent]
+        return min(car.supersonic_time, 3.0) / 3.0
+
+
 class GoalRatioReward(RewardFunction):
     def reset(self, agents, initial_state, shared_info):
         pass
@@ -87,16 +102,13 @@ class GoalRatioReward(RewardFunction):
     def get_rewards(self, agents, state: GameState, is_terminated, is_truncated, shared_info):
         rewards = {}
         for agent in agents:
-            # Blue goal = 1, Orange goal = 2 (standard values), team 0 is blue, 1 is orange
-
             aggression_bias = 0.25  #X % more aggressive
             goal_reward = 10
-            concede_reward = -goal_reward * (1-aggression_bias)   
+            concede_reward = -goal_reward * (1 - aggression_bias)
 
             if state.goal_scored:
-                # If agent is BLUE and ball went into ORANGE goal
-                if (state.cars[agent].team_num == 0 and state.orange_score_changed) or \
-                   (state.cars[agent].team_num == 1 and state.blue_score_changed):
+                agent_team = state.cars[agent].team_num  # 0=Blue, 1=Orange
+                if agent_team == state.scoring_team:
                     rewards[agent] = goal_reward
                 else:
                     rewards[agent] = concede_reward
