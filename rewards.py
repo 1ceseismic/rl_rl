@@ -39,13 +39,18 @@ class InAirReward(RewardFunction[AgentID, GameState, float]):
 
     def reset(self, agents: List[AgentID], inital_state: GameState, sahred_info: Dict[str, any]) -> None: pass
 
-    def get_rewards(self, agents: List[AgentID],state: GameState) -> Dict[AgentID, float]:
-        return {agent: self._get_reward(self, agents) for agent in agents}
+    def get_rewards(
+        self,
+        agents: List[AgentID],
+        state: GameState,
+        is_terminated: Dict[AgentID, bool],
+        is_truncated: Dict[AgentID, bool],
+        shared_info: Dict[str, Any],
+    ) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
 
-    def get_reward(self, agent: AgentID, state: GameState):
+    def _get_reward(self, agent: AgentID, state: GameState):
         car = state.cars[agent]
 
         jumping = (car.is_jumping or car.is_holding_jump or car.has_double_jumped) and not car.on_ground
-
-        time_in_air = car.air_time_since_jump
-        return jumping + time_in_air
+        return float(jumping) + min(car.air_time_since_jump/5.0, 1.0)

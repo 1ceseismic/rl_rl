@@ -21,6 +21,7 @@ def build_env():
         GoalReward,
         TouchReward,
     )
+    from rlgym.rocket_league.rlviser import RLViserRenderer
     from rlgym.rocket_league.sim import RocketSimEngine
     from rlgym.rocket_league.state_mutators import (
         FixedTeamSizeMutator,
@@ -43,7 +44,7 @@ def build_env():
         TimeoutCondition(timeout_seconds=game_timeout_seconds),
     )
 
-    reward_fn = CombinedReward((GoalReward(), 10), (TouchReward(), 1), (VelocityPlayerToBallReward(), 0.3))
+    reward_fn = CombinedReward((GoalReward(), 10), (TouchReward(), 1), (VelocityPlayerToBallReward(), 0.3), (InAirReward(), 0.05))
 
     obs_builder = DefaultObs(
         zero_padding=team_size,
@@ -73,6 +74,7 @@ def build_env():
         truncation_cond=truncation_condition,
         transition_engine=RocketSimEngine(),
         shared_info_provider=CustomMetricsProvider(),
+        renderer=RLViserRenderer(tick_rate=120/8),
     )
 
 
@@ -124,6 +126,8 @@ if __name__ == "__main__":
     def critic_factory(obs_space: DefaultObsSpaceType, device: str):
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
+    n_proc = 48
+
     # Create the config that will be used for the run
     config = LearningCoordinatorConfigModel(
         base_config=BaseConfigModel(
@@ -140,25 +144,28 @@ if __name__ == "__main__":
                 ),
                 shared_info_serde_type=PyAnySerdeType.DYNAMIC(),
             ),
-            timestep_limit=1_000_000_000,  # Train for 1B steps
+            timestep_limit=200_000_000,  # Train for 200M steps, then reduce touch reward
         ),
         process_config=ProcessConfigModel(
-            n_proc=24,  #num of parallel run environments.
-            render=False
+            n_proc=n_proc,
+            render=True,
+            render_delay=8/120,  # ~real-time playback (enable when local display available)
         ),
         agent_controllers_config={
             "PPO1": PPOAgentControllerConfigModel(
+                run_name="stage1-chase-and-aerial",
                 learner_config=PPOLearnerConfigModel(
                     ent_coef=0.01,
-                    actor_lr=5e-5,  
-                    critic_lr=5e-5, 
+                    actor_lr=5e-5,
+                    critic_lr=5e-5,
                 ),
                 experience_buffer_config=ExperienceBufferConfigModel(
-                    max_size=150_000, 
+                    max_size=300_000,
                     trajectory_processor_config=GAETrajectoryProcessorConfigModel(),
                 ),
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
-                    group="rlgym-learn-testing",
+                    group="1v1-training",
+                    run="stage1-chase-and-aerial",
                     settings_kwargs={"entity": "rl_rlbot"},
                 ),
             )
