@@ -1,7 +1,7 @@
 import os
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-from rewards import VelocityPlayerToBallReward, InAirReward
+from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward
 from metrics import CustomMetricsProvider
 
 def build_env():
@@ -44,7 +44,7 @@ def build_env():
         TimeoutCondition(timeout_seconds=game_timeout_seconds),
     )
 
-    reward_fn = CombinedReward((GoalReward(), 10), (TouchReward(), 1), (VelocityPlayerToBallReward(), 0.3), (InAirReward(), 0.05))
+    reward_fn = CombinedReward((GoalRatioReward(), 10), (TouchReward(), 1), (VelocityPlayerToBallReward(), 0.4), (InAirReward(), 0.005), (FaceForwardReward(), 0.5))
 
     obs_builder = DefaultObs(
         zero_padding=team_size,
@@ -126,7 +126,11 @@ if __name__ == "__main__":
     def critic_factory(obs_space: DefaultObsSpaceType, device: str):
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
-    n_proc = 48
+    n_proc = 36 #1.5 cpu count i.e 24 * 1.5 = 36
+    timestep_limit = 200_000_000   #default is 1 billion, 200mil is for initial chasing
+    lr = 2e-4      #2e-4 until silver, 1e-4 after 
+    ts_per_iter = 50_000
+    exp_buf_steps = ts_per_iter*3  #default is 200k
 
     # Create the config that will be used for the run
     config = LearningCoordinatorConfigModel(
@@ -144,23 +148,26 @@ if __name__ == "__main__":
                 ),
                 shared_info_serde_type=PyAnySerdeType.DYNAMIC(),
             ),
-            timestep_limit=200_000_000,  # Train for 200M steps, then reduce touch reward
+            timestep_limit=timestep_limit,  # Train for 200M steps, then reduce touch reward
         ),
         process_config=ProcessConfigModel(
             n_proc=n_proc,
             render=True,
-            render_delay=8/120,  # ~real-time playback (enable when local display available)
+            render_delay=1/120,  #8/120 is default; for realtime (but halts rest of processes for learning by ~67ms)
         ),
         agent_controllers_config={
             "PPO1": PPOAgentControllerConfigModel(
                 run_name="stage1-chase-and-aerial",
+                add_unix_timestamp=False,
+                checkpoint_load_folder="agent_controllers_checkpoints/PPO1/stage1-ball-chase-199M/1772282871964001445",
                 learner_config=PPOLearnerConfigModel(
                     ent_coef=0.01,
-                    actor_lr=5e-5,
-                    critic_lr=5e-5,
+                    actor_lr=lr,
+                    critic_lr=lr,
+                    batch_size=ts_per_iter #ts per iteration,    use this * 2 or 3 for exp buffer
                 ),
                 experience_buffer_config=ExperienceBufferConfigModel(
-                    max_size=300_000,
+                    max_size=exp_buf_steps,
                     trajectory_processor_config=GAETrajectoryProcessorConfigModel(),
                 ),
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
