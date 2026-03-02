@@ -139,9 +139,16 @@ if __name__ == "__main__":
     def critic_factory(obs_space: DefaultObsSpaceType, device: str):
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
+    import socket
     from checkpoint import select_checkpoint
+    hostname = socket.gethostname()
 
-    n_proc = 36 #1.5 cpu count i.e 24 * 1.5 = 36
+    # Per-machine config: (n_proc, render)
+    machine_config = {
+        "szmhcn": (36, True),    # 24 cores, local with rlviser
+        "nyx":    (48, False),   # 32 cores, headless
+    }
+    n_proc, render = machine_config.get(hostname, (36, False))
     timestep_limit = 1_000_000_000
     lr = 2e-4      #2e-4 until silver, 1e-4 after
     ts_per_iter = 50_000
@@ -169,7 +176,7 @@ if __name__ == "__main__":
         ),
         process_config=ProcessConfigModel(
             n_proc=n_proc,
-            render=False,
+            render=render,
             render_delay=8/120,  #8/120 is default; for realtime (but halts rest of processes for learning by ~67ms)
         ),
         agent_controllers_config={

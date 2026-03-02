@@ -6,3 +6,4 @@ shmem_flinks
 collision_meshes
 agent_controllers_checkpoints
 settings.txt
+config.json
