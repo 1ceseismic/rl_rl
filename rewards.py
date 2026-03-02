@@ -171,14 +171,49 @@ class OpponentProximityPenalty(RewardFunction[AgentID, GameState, float]):
         return 0.0
 
 
+class FlipReward(RewardFunction[AgentID, GameState, float]):
+    """Small reward for flipping at all — encourages the bot to explore the mechanic."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        return float(state.cars[agent].is_flipping)
+
+
+class FlipHitReward(RewardFunction[AgentID, GameState, float]):
+    """Big reward for touching ball while flipping. Directly incentivizes flip shots."""
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        car = state.cars[agent]
+        if car.ball_touches > 0 and car.is_flipping:
+            ball_speed = np.linalg.norm(state.ball.linear_velocity)
+            return ball_speed / BALL_MAX_SPEED  # harder flip hit = more reward
+        return 0.0
+
+
 class GoalRatioReward(RewardFunction):
+    def __init__(self, bias=0.25):
+        self.bias = bias
+
     def reset(self, agents, initial_state, shared_info):
         pass
 
     def get_rewards(self, agents, state: GameState, is_terminated, is_truncated, shared_info):
         rewards = {}
         for agent in agents:
-            aggression_bias = 0.25  #X % more aggressive
+            aggression_bias = self.bias #X % more aggressive
             goal_reward = 10
             concede_reward = -goal_reward * (1 - aggression_bias)
 

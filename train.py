@@ -1,7 +1,7 @@
 import os
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward, SpeedReward, DenseSpeedReward, BoostManagementReward, TouchBallVelocityReward, OpponentProximityPenalty
+from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward, SpeedReward, DenseSpeedReward, BoostManagementReward, TouchBallVelocityReward, OpponentProximityPenalty, FlipReward, FlipHitReward
 from metrics import CustomMetricsProvider
 
 def build_env():
@@ -46,7 +46,7 @@ def build_env():
 
     reward_fn = CombinedReward(
         (GoalRatioReward(), 10),
-        (TouchReward(), 0.5),
+        (TouchReward(), 0.4),
         (VelocityPlayerToBallReward(), 0.4),
         (InAirReward(), 0.1),
         (FaceForwardReward(), 0.4),
@@ -55,6 +55,8 @@ def build_env():
         (BoostManagementReward(), 0.05),
         (TouchBallVelocityReward(), 1.0),
         (OpponentProximityPenalty(), 0.1),
+        (FlipReward(), 0.005),
+        (FlipHitReward(), 2.0),
     )
 
     obs_builder = DefaultObs(
@@ -137,17 +139,15 @@ if __name__ == "__main__":
     def critic_factory(obs_space: DefaultObsSpaceType, device: str):
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
-    import socket
-    hostname = socket.gethostname()
+    from checkpoint import select_checkpoint
 
     n_proc = 36 #1.5 cpu count i.e 24 * 1.5 = 36
-    timestep_limit = 200_000_000   #default is 1 billion, 200mil is for initial chasing
+    timestep_limit = 1_000_000_000
     lr = 2e-4      #2e-4 until silver, 1e-4 after
     ts_per_iter = 50_000
     exp_buf_steps = ts_per_iter*3  #default is 200k
-    stage = "stage2-rewards"
-    parent_checkpoint = "stage1-ball-chase-199M"
-    run_name = f"{stage}-{hostname}"
+
+    checkpoint_load, run_name, parent_checkpoint = select_checkpoint()
 
     # Create the config that will be used for the run
     config = LearningCoordinatorConfigModel(
@@ -165,7 +165,7 @@ if __name__ == "__main__":
                 ),
                 shared_info_serde_type=PyAnySerdeType.DYNAMIC(),
             ),
-            timestep_limit=timestep_limit,  # Train for 200M steps, then reduce touch reward
+            timestep_limit=timestep_limit,
         ),
         process_config=ProcessConfigModel(
             n_proc=n_proc,
@@ -176,7 +176,7 @@ if __name__ == "__main__":
             "PPO1": PPOAgentControllerConfigModel(
                 run_name=run_name,
                 add_unix_timestamp=False,
-                checkpoint_load_folder="agent_controllers_checkpoints/PPO1/stage1-ball-chase-199M/1772340045805232857",
+                checkpoint_load_folder=checkpoint_load,
                 learner_config=PPOLearnerConfigModel(
                     ent_coef=0.01,
                     actor_lr=lr,

@@ -56,14 +56,14 @@
         "random_seed": 123,
         "shm_buffer_size": 16384,
         "flinks_folder": "shmem_flinks",
-        "timestep_limit": 200000000,
+        "timestep_limit": 1000000000,
         "batched_tensor_action_associated_learning_data": true
     },
     "process_config": {
         "n_proc": 36,
         "min_process_steps_per_inference": 16,
         "render": true,
-        "render_delay": 0.008333333333333333,
+        "render_delay": 0.06666666666666667,
         "instance_launch_delay": null,
         "recalculate_agent_id_every_step": false
     },
@@ -72,7 +72,7 @@
             "timesteps_per_iteration": 50000,
             "save_every_ts": 1000000,
             "add_unix_timestamp": false,
-            "checkpoint_load_folder": "agent_controllers_checkpoints/PPO1/stage1-chase-and-aerial-25M/1772326860374398253",
+            "checkpoint_load_folder": null,
             "n_checkpoints_to_keep": 5,
             "random_seed": 123,
             "save_mid_iteration_data_in_checkpoint": true,
@@ -83,14 +83,14 @@
                 "n_minibatches": 1,
                 "ent_coef": 0.01,
                 "clip_range": 0.2,
-                "actor_lr": 0.00005,
-                "critic_lr": 0.00005,
+                "actor_lr": 0.0002,
+                "critic_lr": 0.0002,
                 "advantage_normalization": true,
                 "device": "cuda:0",
                 "cudnn_benchmark_mode": true
             },
             "experience_buffer_config": {
-                "max_size": 300000,
+                "max_size": 150000,
                 "device": "cuda:0",
                 "save_experience_buffer_in_checkpoint": true,
                 "trajectory_processor_config": {
@@ -100,15 +100,17 @@
                     "max_returns_per_stats_increment": 150
                 }
             },
-            "run_name": "stage1-chase-and-aerial",
+            "run_name": "fresh-run-szmchn",
             "metrics_logger_config": {
                 "enable": true,
                 "project": "rlgym-learn",
                 "group": "1v1-training",
-                "run": "stage1-chase-and-aerial",
+                "run": "fresh-run-szmchn",
                 "id": null,
                 "new_run_with_timestamp_suffix": false,
-                "additional_wandb_run_config": {},
+                "additional_wandb_run_config": {
+                    "parent_checkpoint": null
+                },
                 "settings_kwargs": {
                     "entity": "rl_rlbot"
                 }
