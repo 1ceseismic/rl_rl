@@ -3,11 +3,10 @@ import json
 import socket
 
 
-def select_checkpoint(base_dir="agent_controllers_checkpoints/PPO1"):
-    """Interactive checkpoint selection. Returns (checkpoint_path, run_name, parent_checkpoint)."""
+def pick_checkpoint(base_dir="agent_controllers_checkpoints/PPO1", allow_fresh=True):
+    """Interactive checkpoint picker. Returns (checkpoint_path, parent_name) or (None, None)."""
     hostname = socket.gethostname()
 
-    # Collect all runs and their latest checkpoints with timestep counts
     run_info = []
     if os.path.isdir(base_dir):
         for run in sorted(os.listdir(base_dir)):
@@ -31,54 +30,50 @@ def select_checkpoint(base_dir="agent_controllers_checkpoints/PPO1"):
     print(f"\n{'='*60}")
     print(f"  Checkpoint Selection ({hostname})")
     print(f"{'='*60}")
-    print(f"  [0] Fresh start (no checkpoint)")
+    if allow_fresh:
+        print(f"  [0] Fresh start (no checkpoint)")
     for i, (run, ckpt, path, ts) in enumerate(run_info, 1):
         marker = " << latest" if default and run == default[0] else ""
         ts_str = f"{ts:,}" if isinstance(ts, int) else ts
         print(f"  [{i}] {run} ({ts_str} steps){marker}")
     print(f"{'='*60}")
     if default:
-        print(f"  Press Enter for auto-resume ({default[0]})")
+        print(f"  Press Enter for latest ({default[0]})")
     else:
-        print(f"  No checkpoints found, press Enter for fresh start")
+        print(f"  No checkpoints found")
 
     try:
         choice = input("  > ").strip()
     except (EOFError, KeyboardInterrupt):
         choice = ""
 
-    # Determine checkpoint
-    checkpoint_path = None
-    parent = None
-    if choice == "0" or (choice == "" and not default):
-        pass  # fresh start
+    if (choice == "0" and allow_fresh) or (choice == "" and not default):
+        print(f"  -> Fresh start")
+        return None, None
     elif choice == "" and default:
-        checkpoint_path = default[2]
-        parent = default[0]
-        print(f"  -> Auto-resuming from {parent}")
+        print(f"  -> {default[0]}")
+        return default[2], default[0]
     else:
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(run_info):
                 picked = run_info[idx]
-                checkpoint_path = picked[2]
-                parent = picked[0]
-                print(f"  -> Resuming from {parent}")
-            else:
-                raise ValueError
+                print(f"  -> {picked[0]}")
+                return picked[2], picked[0]
         except ValueError:
-            if default:
-                checkpoint_path = default[2]
-                parent = default[0]
-                print(f"  -> Invalid choice, auto-resuming from {parent}")
-            else:
-                pass
+            pass
+        if default:
+            print(f"  -> Invalid choice, using {default[0]}")
+            return default[2], default[0]
+        return None, None
 
-    # Ask for run name
-    if checkpoint_path:
-        suggestion = parent
-    else:
-        suggestion = "fresh-run"
+
+def select_checkpoint(base_dir="agent_controllers_checkpoints/PPO1"):
+    """Full selection for training: pick checkpoint + name the run. Returns (checkpoint_path, run_name, parent)."""
+    hostname = socket.gethostname()
+    checkpoint_path, parent = pick_checkpoint(base_dir)
+
+    suggestion = parent if parent else "fresh-run"
     print(f"\n  Run name? (Enter for '{suggestion}')")
     try:
         name = input("  > ").strip()
