@@ -46,17 +46,17 @@ def build_env():
 
     reward_fn = CombinedReward(
         (GoalRatioReward(), 10),
-        (TouchReward(), 0.4),
-        (VelocityPlayerToBallReward(), 0.4),
-        (InAirReward(), 0.1),
+        (TouchReward(), 0.2),
+        (VelocityPlayerToBallReward(), 0.5),
+        (InAirReward(), 0.4),
         (FaceForwardReward(), 0.4),
         (SpeedReward(), 0.3),
-        (DenseSpeedReward(), 0.05),
-        (BoostManagementReward(), 0.05),
-        (TouchBallVelocityReward(), 1.0),
-        (OpponentProximityPenalty(), 0.1),
-        (FlipReward(), 0.005),
-        (FlipHitReward(), 2.0),
+        (DenseSpeedReward(), 0.1),
+        (BoostManagementReward(), 0.2),
+        (TouchBallVelocityReward(), 0.8),
+        (OpponentProximityPenalty(), 0.01),
+        (FlipReward(), 0.3),
+        (FlipHitReward(), 1.0),
     )
 
     obs_builder = DefaultObs(
@@ -149,8 +149,8 @@ if __name__ == "__main__":
         "nyx":    (48, False),   # 32 cores, headless
     }
     n_proc, render = machine_config.get(hostname, (36, False))
-    timestep_limit = 1_000_000_000
-    lr = 2e-4      #2e-4 until silver, 1e-4 after
+    timestep_limit = 3_000_000_000
+    lr = 1e-4      #2e-4 until silver, 1e-4 after
     ts_per_iter = 50_000
     exp_buf_steps = ts_per_iter*3  #default is 200k
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
                 action_space_serde_type=PyAnySerdeType.TUPLE(
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
-                shared_info_serde_type=PyAnySerdeType.DYNAMIC(),
+                shared_info_serde_type=PyAnySerdeType.PICKLE(),
             ),
             timestep_limit=timestep_limit,
         ),

@@ -53,8 +53,8 @@ class InAirReward(RewardFunction[AgentID, GameState, float]):
         car = state.cars[agent]
 
         jumping = (car.is_jumping or car.has_double_jumped) and not car.on_ground
-        #return float(jumping) + min(car.air_time_since_jump/5.0, 1.0)
-        return float(jumping)
+        return float(jumping) + min(car.air_time_since_jump/5.0, 1.0)
+        #return float(jumping)
 
 
 class FaceForwardReward(RewardFunction[AgentID, GameState, float]):
@@ -81,8 +81,6 @@ class FaceForwardReward(RewardFunction[AgentID, GameState, float]):
 
 
 class SpeedReward(RewardFunction[AgentID, GameState, float]):
-    """Rewards being supersonic."""
-
     def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
         pass
 
@@ -166,8 +164,8 @@ class OpponentProximityPenalty(RewardFunction[AgentID, GameState, float]):
             if other_car.team_num != car.team_num:
                 opp_dist = np.linalg.norm(other_car.physics.position - my_pos)
                 # Close to opponent (<500uu ≈ ~2.5 car lengths) and far from ball (>1000uu)
-                if opp_dist < 500 and ball_dist > 1000:
-                    return -1.0  # flat penalty
+                if opp_dist < 400 and ball_dist > 2000:
+                    return max(-400/opp_dist, -1)  # flat penalty
         return 0.0
 
 
@@ -229,6 +227,28 @@ class GoalRatioReward(RewardFunction):
 
 
 
+class DemoReward(RewardFunction):
+    def __init__(self, aggression_bias=0.5):
+        self.aggression_bias = aggression_bias
+
+    def reset(self, agents: List[AgentID], initial_state: GameState, shared_info: Dict[str, Any]) -> None:
+        pass
+
+    def get_rewards(self, agents: List[AgentID], state: GameState, is_terminated: Dict[AgentID, bool],
+                    is_truncated: Dict[AgentID, bool], shared_info: Dict[str, Any]) -> Dict[AgentID, float]:
+        return {agent: self._get_reward(agent, state) for agent in agents}
+
+    def _get_reward(self, agent: AgentID, state: GameState) -> float:
+        car = state.cars[agent]
+
+        if car.is_demoed:
+            return -(0.5 + self.aggression_bias)  # punish dying harder than reward for killing
+
+        if car.bump_victim_id is not None and state.cars[car.bump_victim_id].is_demoed:
+            return 0.5 + self.aggression_bias  # demo'd someone and survived
+
+        return 0.0
+        
 
 
 

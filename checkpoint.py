@@ -85,4 +85,13 @@ def select_checkpoint(base_dir="agent_controllers_checkpoints/PPO1"):
     run_name = f"{name}-{hostname}"
     print(f"  -> Run: {run_name}\n")
 
+    # If resuming from a checkpoint but with a new run name, clear the wandb ID
+    # so it creates a fresh wandb run instead of continuing the old one
+    if checkpoint_path and parent and name != parent:
+        wandb_json = os.path.join(checkpoint_path, "metrics_logger", "wandb_metrics_logger.json")
+        if os.path.exists(wandb_json):
+            with open(wandb_json, "w") as f:
+                json.dump({}, f)
+            print(f"  (Cleared wandb run ID — will create new wandb run)\n")
+
     return checkpoint_path, run_name, parent
