@@ -1,7 +1,13 @@
 import os
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-from rewards import VelocityPlayerToBallReward, InAirReward, FaceForwardReward, GoalRatioReward, SpeedReward, DenseSpeedReward, BoostManagementReward, TouchBallVelocityReward, OpponentProximityPenalty, FlipReward, FlipHitReward
+from rewards import (
+    GoalRatioReward, SpeedReward,
+    DeltaDistToBallReward, DeltaBallToGoalReward,
+    TouchBallVelocityReward, FlipReward, FlipHitReward,
+    DemoReward, AerialHitReward, WallJumpReward, ShotReward, SaveReward,
+    TrackedCombinedReward,
+)
 from metrics import CustomMetricsProvider
 
 def build_env():
@@ -13,20 +19,23 @@ def build_env():
         AnyCondition,
         GoalCondition,
         NoTouchTimeoutCondition,
-        TimeoutCondition,
     )
     from rlgym.rocket_league.obs_builders import DefaultObs
     from rlgym.rocket_league.reward_functions import (
-        CombinedReward,
         GoalReward,
         TouchReward,
     )
     from rlgym.rocket_league.rlviser import RLViserRenderer
-    from rlgym.rocket_league.sim import RocketSimEngine
+    from engine import StatsEngine
     from rlgym.rocket_league.state_mutators import (
         FixedTeamSizeMutator,
         KickoffMutator,
         MutatorSequence,
+    )
+    from mutators import (
+        AerialBallMutator, DribbleMutator, WallBallMutator, RandomMutator,
+        RecoveryMutator, ShotSetupMutator, DefenseMutator, FastAerialMutator,
+        DrillTimeoutCondition,
     )
 
     spawn_opponents = True
@@ -41,24 +50,27 @@ def build_env():
     termination_condition = GoalCondition()
     truncation_condition = AnyCondition(
         NoTouchTimeoutCondition(timeout_seconds=no_touch_timeout_seconds),
-        TimeoutCondition(timeout_seconds=game_timeout_seconds),
+        DrillTimeoutCondition(match_timeout_seconds=game_timeout_seconds, drill_timeout_seconds=15),
     )
 
-    reward_fn = CombinedReward(
-        (GoalRatioReward(), 10),
+    reward_fn = TrackedCombinedReward(
+        # Sparse event rewards
+        (GoalRatioReward(), 25),
         (TouchReward(), 0.2),
-        (VelocityPlayerToBallReward(), 0.5),
-        (InAirReward(), 0.4),
-        (FaceForwardReward(), 0.4),
-        (SpeedReward(), 0.3),
-        (DenseSpeedReward(), 0.1),
-        (BoostManagementReward(), 0.2),
-        (TouchBallVelocityReward(), 0.8),
-        (OpponentProximityPenalty(), 0.01),
-        (FlipReward(), 0.3),
-        (FlipHitReward(), 1.0),
+        (TouchBallVelocityReward(), 0.4),
+        (FlipReward(), 0.01),
+        (FlipHitReward(), 0.05),
+        (DemoReward(), 5.0),
+        (AerialHitReward(), 1.5),
+        (WallJumpReward(), 1),
+        (ShotReward(), 2.5),
+        (SaveReward(), 2.0),
+        (SpeedReward(), 0.2),
+        # Delta (potential-based) shaping rewards
+        (DeltaDistToBallReward(), 0.3),
+        (DeltaBallToGoalReward(), 0.3),
     )
-
+    
     obs_builder = DefaultObs(
         zero_padding=team_size,
         pos_coef=np.asarray(
@@ -76,7 +88,18 @@ def build_env():
 
     state_mutator = MutatorSequence(
         FixedTeamSizeMutator(blue_size=blue_team_size, orange_size=orange_team_size),
-        KickoffMutator(),
+        RandomMutator(
+            # Match mutators (long episodes, 300s timeout)
+            (KickoffMutator(), 0.15),
+            (AerialBallMutator(), 0.20),
+            (WallBallMutator(), 0.10),
+            # Drill mutators (short episodes, 15s timeout)
+            (DribbleMutator(), 0.12),
+            (RecoveryMutator(), 0.10),
+            (ShotSetupMutator(), 0.12),
+            (DefenseMutator(), 0.11),
+            (FastAerialMutator(), 0.10),
+        ),
     )
     return RLGym(
         state_mutator=state_mutator,
@@ -85,7 +108,7 @@ def build_env():
         reward_fn=reward_fn,
         termination_cond=termination_condition,
         truncation_cond=truncation_condition,
-        transition_engine=RocketSimEngine(),
+        transition_engine=StatsEngine(),
         shared_info_provider=CustomMetricsProvider(),
         renderer=RLViserRenderer(tick_rate=120/8),
     )
@@ -145,14 +168,14 @@ if __name__ == "__main__":
 
     # Per-machine config: (n_proc, render)
     machine_config = {
-        "szmhcn": (36, True),    # 24 cores, local with rlviser
+        "szmchn": (36, True),    # 24 cores, local with rlviser
         "nyx":    (48, False),   # 32 cores, headless
     }
     n_proc, render = machine_config.get(hostname, (36, False))
     timestep_limit = 3_000_000_000
     lr = 1e-4      #2e-4 until silver, 1e-4 after
     ts_per_iter = 50_000
-    exp_buf_steps = ts_per_iter*3  #default is 200k
+    exp_buf_steps = ts_per_iter*4  #default is 200k
 
     checkpoint_load, run_name, parent_checkpoint = select_checkpoint()
 

@@ -6,6 +6,8 @@ from rlgym.rocket_league.api import GameState
 from rlgym.rocket_league.common_values import CAR_MAX_SPEED
 from rlgym_learn_algos.ppo import PPOMetricsLogger
 
+from engine import rsim_stats
+
 
 class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
     """Captures per-step game state and accumulates stats for metrics logging."""
@@ -13,8 +15,7 @@ class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
     def create(self, shared_info: Dict[str, Any]) -> Dict[str, Any]:
         shared_info["game_metrics"] = self._empty_metrics()
         shared_info["_step_count"] = 0
-        shared_info["_total_touches"] = 0
-        shared_info["_demo_count"] = 0
+        shared_info["_prev_flipping"] = set()
         return shared_info
 
     def set_state(
@@ -25,8 +26,7 @@ class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
     ) -> Dict[str, Any]:
         shared_info["game_metrics"] = self._empty_metrics()
         shared_info["_step_count"] = 0
-        shared_info["_total_touches"] = 0
-        shared_info["_demo_count"] = 0
+        shared_info["_prev_flipping"] = set()
         return shared_info
 
     def step(
@@ -47,8 +47,9 @@ class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
         total_dist_to_ball = 0.0
         airborne_count = 0
         supersonic_count = 0
-        demo_count = 0
         total_touches = 0
+        prev_flipping = shared_info["_prev_flipping"]
+        now_flipping = set()
 
         for agent_id, car in state.cars.items():
             total_boost += car.boost_amount
@@ -59,12 +60,26 @@ class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
                 airborne_count += 1
             if car.is_supersonic:
                 supersonic_count += 1
-            if car.is_demoed:
-                demo_count += 1
             total_touches += car.ball_touches
 
+            # Count flip starts (transition from not flipping to flipping)
+            if car.is_flipping:
+                now_flipping.add(agent_id)
+                if agent_id not in prev_flipping:
+                    metrics["Flips"] += 1.0
+
+            # Accumulate rsim stats (saves, shots, assists, demos, boost pickups)
+            agent_stats = rsim_stats.get(agent_id)
+            if agent_stats:
+                metrics["Demos"] += agent_stats["demos"]
+                metrics["Saves"] += agent_stats["saves"]
+                metrics["Shots"] += agent_stats["shots"]
+                metrics["Assists"] += agent_stats["assists"]
+                metrics["Boost Pickups"] += agent_stats["boost_pickups"]
+
+        shared_info["_prev_flipping"] = now_flipping
+
         if n_cars > 0:
-            # Running averages using incremental formula
             avg_boost = total_boost / n_cars
             avg_speed = total_speed / n_cars
             avg_dist = total_dist_to_ball / n_cars
@@ -77,15 +92,7 @@ class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
             metrics["Air Time Ratio"] += (air_ratio - metrics["Air Time Ratio"]) / n
             metrics["Supersonic Ratio"] += (supersonic_ratio - metrics["Supersonic Ratio"]) / n
 
-        # Track new demos and touches since last step
-        new_demos = demo_count - shared_info.get("_prev_demo_count", 0)
-        if new_demos > 0:
-            shared_info["_demo_count"] += new_demos
-        shared_info["_prev_demo_count"] = demo_count
-
-        shared_info["_total_touches"] = total_touches
-        metrics["Ball Touches"] = float(total_touches)
-        metrics["Demos"] = float(shared_info["_demo_count"])
+        metrics["Ball Touches"] += total_touches
 
         if state.goal_scored:
             if state.scoring_team == 0:
@@ -108,6 +115,11 @@ class CustomMetricsProvider(SharedInfoProvider[AgentID, GameState]):
             "Supersonic Ratio": 0.0,
             "Avg Distance to Ball": 0.0,
             "Demos": 0.0,
+            "Saves": 0.0,
+            "Shots": 0.0,
+            "Assists": 0.0,
+            "Flips": 0.0,
+            "Boost Pickups": 0.0,
         }
 
 
@@ -130,13 +142,18 @@ class CustomMetricsLogger(PPOMetricsLogger):
         aggregated = {}
         for key in keys:
             values = [d[key] for d in game_data]
-            if "Goals" in key or "Demos" in key or "Touches" in key:
-                aggregated[key] = sum(values) / len(values)
-            else:
-                aggregated[key] = sum(values) / len(values)
+            aggregated[key] = sum(values) / len(values)
 
         # Normalize speed to a more readable value
         if aggregated.get("Avg Speed", 0) > 0:
             aggregated["Avg Speed (% Max)"] = aggregated.pop("Avg Speed") / CAR_MAX_SPEED * 100
 
-        self.state_metrics = {"Game Stats": aggregated}
+        # Per-component reward breakdown
+        reward_data = [d["reward_components"] for d in data if isinstance(d, dict) and "reward_components" in d]
+        reward_breakdown = {}
+        if reward_data:
+            for key in reward_data[0]:
+                values = [d[key] for d in reward_data]
+                reward_breakdown[key] = sum(values) / len(values)
+
+        self.state_metrics = {"Game Stats": aggregated, "Reward Components": reward_breakdown}
