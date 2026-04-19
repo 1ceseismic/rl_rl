@@ -6,12 +6,12 @@
 #include <RLGymCPP/TerminalConditions/GoalScoreCondition.h>
 #include <RLGymCPP/StateSetters/KickoffState.h>
 #include <RLGymCPP/StateSetters/CombinedState.h>
+#include <RLGymCPP/ObsBuilders/DefaultObs.h>
+#include <RLGymCPP/ActionParsers/DefaultAction.h>
 
 #include "rewards/CustomRewards.h"
 #include "mutators/RandomFieldState.h"
 #include "mutators/DrillTimeoutCondition.h"
-#include "obs/NormalizedObs.h"
-#include "actions/ExpandedLookupAction.h"
 #include "StepCallback.h"
 
 #include <cstdlib>
@@ -86,8 +86,8 @@ EnvCreateResult EnvCreateFunc(int index) {
 		new rl_rl::DrillTimeoutCondition(300.f),
 	};
 
-	result.obsBuilder = new rl_rl::NormalizedObs();
-	result.actionParser = new rl_rl::ExpandedLookupAction();
+	result.obsBuilder = new DefaultObs();       // GGL default coefficients + rotation-matrix encoding
+	result.actionParser = new DefaultAction();  // GGL default 90-action lookup + built-in masking
 	result.rewards = BuildRewards();
 	return result;
 }
