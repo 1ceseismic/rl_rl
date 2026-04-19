@@ -62,13 +62,12 @@ fi
 
 cmake --build "$BUILD_DIR" --parallel
 
-# Override GGL's default RocketSimVis render receiver with our rlviser
-# forwarder. GGL's own `configure_file(... COPY)` writes its JSON-to-UDP-9273
-# receiver into build-ggl/python_scripts/; we overwrite it after build so
-# render mode drives rlviser (Bevy) instead of a tool we don't have installed.
-if [[ -f "$ROOT/ggl/python_scripts/render_receiver.py" ]]; then
+# Override GGL's default python receivers with ours:
+#   - render_receiver.py — rlviser (Bevy) instead of RocketSimVis on UDP 9273
+#   - metric_receiver.py — reads WANDB_ENTITY from env so rl_rlbot is honored
+if [[ -d "$ROOT/ggl/python_scripts" ]]; then
     mkdir -p "$BUILD_DIR/python_scripts"
-    cp "$ROOT/ggl/python_scripts/render_receiver.py" "$BUILD_DIR/python_scripts/render_receiver.py"
+    cp "$ROOT/ggl/python_scripts/"*.py "$BUILD_DIR/python_scripts/"
 fi
 
 # Symlink rlviser into build-ggl/ so rlviser_py finds it via ./rlviser (it

@@ -7,7 +7,7 @@
 #   scripts/go -c              # clean build first
 #   scripts/go -R              # reset ALL checkpoints (required after obs/action/net-arch change)
 #   scripts/go -n 4            # 4 envs (override GGL_NUM_GAMES)
-#   scripts/go -m              # enable wandb metrics (off by default for smoke)
+#   scripts/go -M              # DISABLE wandb metrics (on by default; rl_rlbot entity)
 #   scripts/go --run-name foo  # skip picker, use this run name directly
 #   scripts/go -y              # skip picker, use 'default' (for CI / non-interactive)
 #   scripts/go build           # build only
@@ -23,7 +23,7 @@ TORCH_PATH="${TORCH_PATH:-$ROOT/.venv/lib/python3.12/site-packages/torch}"
 MESH_DIR="${GGL_MESH_DIR:-$ROOT/collision_meshes}"
 NUM_GAMES="${GGL_NUM_GAMES:-36}"
 RUN_NAME="${GGL_RUN_NAME:-}"
-NO_METRICS=1
+NO_METRICS=0   # wandb on by default; -M toggles off
 RENDER=0
 CLEAN=0
 RESET=0
@@ -36,7 +36,8 @@ while [[ $# -gt 0 ]]; do
         -R|--reset) RESET=1; shift ;;
         -w|--render|--watch) RENDER=1; NUM_GAMES=${GGL_NUM_GAMES:-2}; shift ;;
         -n|--num-games) NUM_GAMES="$2"; shift 2 ;;
-        -m|--metrics) NO_METRICS=0; shift ;;
+        -m|--metrics) NO_METRICS=0; shift ;;         # kept for compat; no-op now that default is on
+        -M|--no-metrics) NO_METRICS=1; shift ;;
         -y|--yes) NONINTERACTIVE=1; shift ;;
         --run-name) RUN_NAME="$2"; shift 2 ;;
         build) ACTION=build; shift ;;
@@ -131,6 +132,10 @@ if [[ -x "$PY_EXE" ]]; then
     PY_SITE=$("$PY_EXE" -c 'import site; print(site.getsitepackages()[0])')
     ENV_VARS+=("PYTHONHOME=$PY_HOME" "PYTHONPATH=$PY_SITE")
 fi
+
+# Default wandb entity to match the Python training setup (rl_rlbot).
+# Override by setting WANDB_ENTITY before invoking scripts/go.
+ENV_VARS+=("WANDB_ENTITY=${WANDB_ENTITY:-rl_rlbot}")
 
 echo "[go] running with: ${ENV_VARS[*]}"
 cd "$BUILD_DIR"
