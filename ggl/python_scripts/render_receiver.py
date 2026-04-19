@@ -41,15 +41,13 @@ def _vec(lst):
 
 
 def _rotmat(phys):
-    # GGL sends forward/right/up as separate arrays. rsim.RotMat is column-major,
-    # constructed from nine floats in row order (forward_x, right_x, up_x,
-    # forward_y, right_y, up_y, forward_z, right_z, up_z).
+    # rsim.RotMat's 9-float constructor takes the basis vectors sequentially:
+    #   RotMat(fx, fy, fz,  rx, ry, rz,  ux, uy, uz)
+    # (verified empirically with distinct values). Passing row-major indices
+    # here shuffles every car's orientation and rlviser displays cars sliding
+    # across the field without rotating.
     f = phys["forward"]; r = phys["right"]; u = phys["up"]
-    return rsim.RotMat(
-        f[0], r[0], u[0],
-        f[1], r[1], u[1],
-        f[2], r[2], u[2],
-    )
+    return rsim.RotMat(*f, *r, *u)
 
 
 def _ball_state(ball_json):
