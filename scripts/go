@@ -113,9 +113,24 @@ declare -a ENV_VARS=(
     "GGL_MESH_DIR=$MESH_DIR"
     "GGL_NUM_GAMES=$NUM_GAMES"
     "GGL_RUN_NAME=$RUN_NAME"
+    # Add repo root to PATH so rlviser_py's posix_spawn finds ./rlviser.
+    "PATH=$ROOT:${PATH:-}"
 )
 [[ "$NO_METRICS" == "1" ]] && ENV_VARS+=("GGL_NO_METRICS=1")
 [[ "$RENDER"     == "1" ]] && ENV_VARS+=("GGL_RENDER=1")
+
+# Point the embedded Python interpreter at the venv's stdlib + site-packages.
+# The libpython3.12.so we link against has its install-time PYTHONHOME baked
+# in as /install (cpython build artifact), which doesn't exist at runtime. We
+# set PYTHONHOME to the uv-managed Python base_prefix so stdlib loads, and
+# PYTHONPATH to the venv's site-packages so rlviser_py / wandb / torch are
+# importable from the embedded interpreter.
+PY_EXE="${GGL_PYTHON:-$ROOT/.venv/bin/python}"
+if [[ -x "$PY_EXE" ]]; then
+    PY_HOME=$("$PY_EXE" -c 'import sys; print(sys.base_prefix)')
+    PY_SITE=$("$PY_EXE" -c 'import site; print(site.getsitepackages()[0])')
+    ENV_VARS+=("PYTHONHOME=$PY_HOME" "PYTHONPATH=$PY_SITE")
+fi
 
 echo "[go] running with: ${ENV_VARS[*]}"
 cd "$BUILD_DIR"
