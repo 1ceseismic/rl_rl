@@ -2,28 +2,32 @@
 # Dev loop: rebuild (incremental) and run.
 #
 # Usage:
-#   scripts/go                 # incremental build + train
+#   scripts/go                 # pick checkpoint, build, train
+#   scripts/go -w              # pick checkpoint, render via rlviser
 #   scripts/go -c              # clean build first
-#   scripts/go -R              # reset checkpoints (required after obs/action/net-arch change)
-#   scripts/go -w              # render via rlviser
+#   scripts/go -R              # reset ALL checkpoints (required after obs/action/net-arch change)
 #   scripts/go -n 4            # 4 envs (override GGL_NUM_GAMES)
 #   scripts/go -m              # enable wandb metrics (off by default for smoke)
+#   scripts/go --run-name foo  # skip picker, use this run name directly
+#   scripts/go -y              # skip picker, use 'default' (for CI / non-interactive)
 #   scripts/go build           # build only
-#   scripts/go run             # run only
+#   scripts/go run             # run only (no picker, no build)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build-ggl"
 BINARY="$BUILD_DIR/rl_rl_ggl"
+CKPT_ROOT="$BUILD_DIR/checkpoints_ggl"
 
 TORCH_PATH="${TORCH_PATH:-$ROOT/.venv/lib/python3.12/site-packages/torch}"
 MESH_DIR="${GGL_MESH_DIR:-$ROOT/collision_meshes}"
 NUM_GAMES="${GGL_NUM_GAMES:-36}"
-RUN_NAME="${GGL_RUN_NAME:-dev}"
-NO_METRICS=1  # default off; -m toggles on
+RUN_NAME="${GGL_RUN_NAME:-}"
+NO_METRICS=1
 RENDER=0
 CLEAN=0
 RESET=0
+NONINTERACTIVE=0
 ACTION=both   # both | build | run
 
 while [[ $# -gt 0 ]]; do
@@ -33,6 +37,7 @@ while [[ $# -gt 0 ]]; do
         -w|--render|--watch) RENDER=1; NUM_GAMES=${GGL_NUM_GAMES:-2}; shift ;;
         -n|--num-games) NUM_GAMES="$2"; shift 2 ;;
         -m|--metrics) NO_METRICS=0; shift ;;
+        -y|--yes) NONINTERACTIVE=1; shift ;;
         --run-name) RUN_NAME="$2"; shift 2 ;;
         build) ACTION=build; shift ;;
         run) ACTION=run; shift ;;
@@ -42,15 +47,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$RESET" == "1" ]]; then
-    echo "[go] reset checkpoints: $BUILD_DIR/checkpoints_ggl"
-    rm -rf "$BUILD_DIR/checkpoints_ggl"
+    echo "[go] reset ALL checkpoints: $CKPT_ROOT"
+    rm -rf "$CKPT_ROOT"
 fi
 
+# ── Build ──────────────────────────────────────────────────────────────
 if [[ "$ACTION" != "run" ]]; then
     if [[ "$CLEAN" == "1" ]]; then
         echo "[go] clean build"
         rm -rf "$BUILD_DIR"
     fi
+    mkdir -p "$BUILD_DIR"
     echo "[go] building (output → $BUILD_DIR/.go_build.log)"
     if ! TORCH_PATH="$TORCH_PATH" "$ROOT/scripts/build_ggl.sh" >"$BUILD_DIR/.go_build.log" 2>&1; then
         echo "[go] build failed. last 40 lines:"
@@ -69,6 +76,25 @@ if [[ ! -x "$BINARY" ]]; then
     exit 1
 fi
 
+# ── Checkpoint picker ──────────────────────────────────────────────────
+# Skip when:
+#   - User passed --run-name explicitly
+#   - User passed -y (non-interactive)
+#   - "run" subcommand (bare run, no picker)
+#   - Not connected to a TTY
+if [[ -z "$RUN_NAME" && "$NONINTERACTIVE" == "0" && "$ACTION" != "run" && -t 0 ]]; then
+    PICKER_MODE="--train"
+    [[ "$RENDER" == "1" ]] && PICKER_MODE="--watch"
+    PICKER_OUT=$("$ROOT/scripts/ckpt.py" --root "$CKPT_ROOT" "$PICKER_MODE") || {
+        echo "[go] picker aborted."; exit 1
+    }
+    # Picker prints one line: RUN_NAME=<name>
+    eval "$PICKER_OUT"
+fi
+
+RUN_NAME="${RUN_NAME:-default}"
+
+# ── Run ────────────────────────────────────────────────────────────────
 declare -a ENV_VARS=(
     "GGL_MESH_DIR=$MESH_DIR"
     "GGL_NUM_GAMES=$NUM_GAMES"

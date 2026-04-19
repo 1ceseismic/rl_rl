@@ -15,6 +15,7 @@
 #include "StepCallback.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -149,7 +150,12 @@ int main(int argc, char* argv[]) {
 	cfg.deviceType = LearnerDeviceType::AUTO;
 
 	// ── Checkpoints ──
-	cfg.checkpointFolder = "checkpoints_ggl";
+	// Per-run layout: checkpoints_ggl/<run-name>/<timestep>/ so multiple runs can
+	// coexist and the Python picker can list them. GGL_RUN_NAME below feeds both
+	// the wandb metrics and the checkpoint folder path.
+	const char* runNameEnv = std::getenv("GGL_RUN_NAME");
+	std::string runName = runNameEnv ? runNameEnv : "default";
+	cfg.checkpointFolder = std::filesystem::path("checkpoints_ggl") / runName;
 	cfg.tsPerSave = 1'000'000;
 	cfg.checkpointsToKeep = 8;
 
@@ -162,8 +168,7 @@ int main(int argc, char* argv[]) {
 	cfg.addRewardsToMetrics = cfg.sendMetrics;  // reward component breakdown shipped automatically
 	cfg.metricsProjectName = "rlgym-learn";  // preserve wandb project from train.py
 	cfg.metricsGroupName = "1v1-training";
-	const char* runNameEnv = std::getenv("GGL_RUN_NAME");
-	cfg.metricsRunName = runNameEnv ? runNameEnv : "ggl-port";
+	cfg.metricsRunName = runName;
 
 	// ── Render ── Off for training. Set GGL_RENDER=1 for live rlviser.
 	cfg.renderMode = std::getenv("GGL_RENDER") != nullptr;
