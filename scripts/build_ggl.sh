@@ -31,12 +31,23 @@ echo "[build_ggl] GGL_ROOT: $GGL_ROOT"
 echo "[build_ggl] BUILD_TYPE: $BUILD_TYPE"
 echo "[build_ggl] TORCH_PATH: ${TORCH_PATH:-<unset — CMake will try to find Torch on its own>}"
 
-cmake -S "$ROOT" -B "$BUILD_DIR" \
-    -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
-    -DGGL_ROOT="$GGL_ROOT" \
-    "${CMAKE_EXTRA[@]}"
+# Skip the CMake configure step on warm rebuilds — it costs ~1s even when
+# nothing changed. CMake's generated Makefile will re-run configure itself
+# if any CMakeLists.txt has been touched since the cache was written.
+if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    cmake -S "$ROOT" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+        -DGGL_ROOT="$GGL_ROOT" \
+        "${CMAKE_EXTRA[@]}"
+fi
 
 cmake --build "$BUILD_DIR" --parallel
+
+# Bump the binary's mtime so no-change invocations can short-circuit via a
+# simple `find -newer` check. cmake --build only rewrites the binary when
+# something actually linked; without this touch, every `scripts/go` would
+# re-enter cmake just to confirm nothing's out of date.
+[[ -x "$BUILD_DIR/rl_rl_ggl" ]] && touch "$BUILD_DIR/rl_rl_ggl"
 
 echo
 echo "[build_ggl] binary: $BUILD_DIR/rl_rl_ggl"

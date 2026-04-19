@@ -52,19 +52,33 @@ if [[ "$RESET" == "1" ]]; then
 fi
 
 # ── Build ──────────────────────────────────────────────────────────────
+# Fast path: if the binary is newer than every source file we care about,
+# skip the build entirely. Saves ~1.7s on no-change reruns. Forced clean
+# skips this check.
+need_build() {
+    [[ ! -x "$BINARY" ]] && return 0
+    local newest
+    newest=$(find "$ROOT/ggl" "$ROOT/CMakeLists.txt" "$ROOT/scripts/build_ggl.sh" \
+        -type f \( -name '*.cpp' -o -name '*.h' -o -name 'CMakeLists.txt' -o -name 'build_ggl.sh' \) \
+        -newer "$BINARY" -print -quit 2>/dev/null)
+    [[ -n "$newest" ]]
+}
+
 if [[ "$ACTION" != "run" ]]; then
     if [[ "$CLEAN" == "1" ]]; then
         echo "[go] clean build"
         rm -rf "$BUILD_DIR"
     fi
     mkdir -p "$BUILD_DIR"
-    echo "[go] building (output → $BUILD_DIR/.go_build.log)"
-    if ! TORCH_PATH="$TORCH_PATH" "$ROOT/scripts/build_ggl.sh" >"$BUILD_DIR/.go_build.log" 2>&1; then
-        echo "[go] build failed. last 40 lines:"
-        tail -40 "$BUILD_DIR/.go_build.log"
-        exit 1
+    if [[ "$CLEAN" == "1" ]] || need_build; then
+        echo "[go] building (output → $BUILD_DIR/.go_build.log)"
+        if ! TORCH_PATH="$TORCH_PATH" "$ROOT/scripts/build_ggl.sh" >"$BUILD_DIR/.go_build.log" 2>&1; then
+            echo "[go] build failed. last 40 lines:"
+            tail -40 "$BUILD_DIR/.go_build.log"
+            exit 1
+        fi
+        echo "[go] built: $BINARY"
     fi
-    echo "[go] built: $BINARY"
 fi
 
 if [[ "$ACTION" == "build" ]]; then
