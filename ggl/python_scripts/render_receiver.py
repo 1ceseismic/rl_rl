@@ -29,7 +29,10 @@ def get_game_speed() -> float:
     slider value so moving it actually speeds up / slows down the sim."""
     try:
         return float(rlviser.get_game_speed())
-    except Exception:
+    except BaseException:
+        # BaseException (not Exception) because Python's embedded SIGINT
+        # handler raises KeyboardInterrupt on stray Ctrl-C in the terminal
+        # — letting that propagate to C++ crashes the training loop.
         return 1.0
 
 
@@ -107,6 +110,11 @@ def render_state(state_json_str: str) -> None:
             ball=ball,
             cars=cars,
         )
-    except Exception:
+    except BaseException:
+        # BaseException catches KeyboardInterrupt too. Python's embedded
+        # SIGINT handler raises it on any stray Ctrl-C (even accidental
+        # ones from terminal focus changes); bubbling that up to GGL's
+        # RenderSender::Send() turns it into RG_ERR_CLOSE → SIGABRT and
+        # kills the whole training run.
         print("render_receiver: exception forwarding state to rlviser:")
         traceback.print_exc()

@@ -43,4 +43,12 @@ def add_metrics(metrics):
     global wandb_run
     if wandb_run is None:
         return
-    wandb_run.log(metrics)
+    try:
+        wandb_run.log(metrics)
+    except BaseException:
+        # Never crash training on a metrics hiccup (network blip, stray
+        # SIGINT from the terminal turned into KeyboardInterrupt by the
+        # embedded Python, etc.). wandb will catch up on the next log().
+        import traceback
+        print("metric_receiver: log failed, continuing:")
+        traceback.print_exc()
