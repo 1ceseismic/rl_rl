@@ -162,6 +162,28 @@ int main(int argc, char* argv[]) {
 	cfg.tsPerSave = 1'000'000;
 	cfg.checkpointsToKeep = 8;
 
+	// ── Policy versioning + ELO skill tracking ──
+	// Saves a policy snapshot every tsPerVersion steps; the SkillTracker uses
+	// those snapshots to play head-to-head matches against the current policy
+	// and logs Rating/<mode> (e.g. Rating/1v1) to wandb. Ratings will be flat
+	// until the bot starts scoring reliably (~100M), but turning this on early
+	// is harmless — snapshots accumulate so the graph is populated when matches
+	// finally produce signal.
+	cfg.savePolicyVersions = true;
+	cfg.tsPerVersion = 25'000'000;     // snapshot every 25M steps
+	cfg.maxOldVersions = 32;
+
+	cfg.trainAgainstOldVersions = true;      // 15% of rollouts vs a random old version
+	cfg.trainAgainstOldChance = 0.15f;
+
+	cfg.skillTracker.enabled = true;
+	cfg.skillTracker.updateInterval = 16;    // run rating matches every 16 iters
+	cfg.skillTracker.numArenas = 16;         // <= CPU thread count
+	cfg.skillTracker.simTime = 45;           // seconds per rating game
+	cfg.skillTracker.maxSimTime = 240;
+	cfg.skillTracker.ratingInc = 5;
+	cfg.skillTracker.initialRating = 0;      // relative system; offset in wandb if desired
+
 	// ── Metrics (wandb via python_scripts/metric_receiver.py) ──
 	// Set GGL_NO_METRICS=1 for smoke runs without wandb. The embedded Python
 	// interpreter is selected at GGL build time; if it's the system Python
