@@ -1,0 +1,1 @@
+Anchor dir so `../OBSBuilders/OBSBuilder.h` resolves to ../OBSBuilders/OBSBuilder.h relative to this directory when added as an include path.

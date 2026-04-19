@@ -7,3 +7,12 @@ collision_meshes
 agent_controllers_checkpoints
 settings.txt
 config.json
+
+# GGL build artifacts
+build-ggl/
+checkpoints_ggl/
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
