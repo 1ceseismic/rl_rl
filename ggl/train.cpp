@@ -22,46 +22,49 @@
 using namespace GGL;
 using namespace RLGC;
 
-// Reward weights from train.py:TrackedCombinedReward.
-// Preserving the Python values 1:1. Note that GGL's PPO normalizes returns
-// (standardizeReturns=true by default) so absolute weight scale matters less
-// than relative magnitudes.
+// Default reward set: copied from GigaLearnCPP's ExampleMain.cpp, which claims
+// "produces a scoring bot in ~100m steps." Starting from a known-good GGL
+// baseline before layering on project-specific shaping.
+//
+// The Python ports (AcceleratedTouch, InAir, Demo, SpeedBump, SupersonicSpeed,
+// DeltaDistToBall, DeltaBallToGoal) live in ggl/rewards/CustomRewards.h and
+// can be re-enabled by uncommenting the block below — but they're known to
+// be rough ports and should not be trusted before re-auditing.
 static std::vector<WeightedReward> BuildRewards() {
 	return {
-		// ── Goal / concede (GoalRatioReward with bias=0.25 ↔ GoalReward(concedeScale=-0.75)) ──
-		// GoalRatioReward returns +goal_reward on scoring, -goal_reward*(1-bias) on concede.
-		// bias=0.25 → concede = -0.75. Matches GGL's GoalReward(concedeScale=-0.75).
-		{ new GoalReward(-0.75f), 100.f },
+		// Movement
+		{ new AirReward(), 0.25f },
 
-		// ── Touch dynamics ──
-		{ new rl_rl::AcceleratedTouchReward(0.2f, 1.0f), 4.0f },
+		// Player-ball
+		{ new FaceBallReward(), 0.25f },
+		{ new VelocityPlayerToBallReward(), 4.f },
+		{ new StrongTouchReward(20, 100), 60.f },
 
-		// ── Aerial shaping ──
-		{ new rl_rl::InAirReward(), 0.4f },
+		// Ball-goal
+		{ new ZeroSumReward(new VelocityBallToGoalReward(), 1.f), 2.0f },
 
-		// ── Demos (zero-sum built-in bias baked in) ──
-		{ new rl_rl::DemoReward(0.5f), 70.0f },
+		// Boost
+		{ new PickupBoostReward(), 10.f },
+		{ new SaveBoostReward(), 0.2f },
 
-		// ── Bumps (zero-sum, speed-scaled) ──
-		{ new rl_rl::SpeedBumpReward(), 15.0f },
+		// Game events
+		{ new ZeroSumReward(new BumpReward(), 0.5f), 20.f },
+		{ new ZeroSumReward(new DemoReward(), 0.5f), 80.f },
+		{ new GoalReward(), 150.f },
 
-		// ── Event counters ──
-		// NOTE: Python rewards used rsim_stats integer counts (1.0 per event). GGL's
-		// built-in event rewards fire on the tick the event occurs (also 1.0), so the
-		// per-event magnitude matches. Accumulation over the episode also matches.
-		{ new ShotReward(), 15.0f },
-		{ new SaveReward(), 20.0f },
-		// PickupBoostReward differs: Python = integer count, GGL = sqrt-normalized
-		// boost delta. Per-pickup reward in GGL is ~0.58 for a 33-boost pad, ~1.0
-		// for a 100-boost pad. If this ends up too weak, raise the weight.
-		{ new PickupBoostReward(), 15.0f },
-
-		// ── Speed (supersonic_time based) ──
-		{ new rl_rl::SupersonicSpeedReward(), 0.5f },
-
-		// ── Potential-based shaping ──
-		{ new rl_rl::DeltaDistToBallReward(), 5.0f },
-		{ new rl_rl::DeltaBallToGoalReward(), 5.0f },
+		// ── Project-specific rewards ported from rewards.py (DISABLED) ────
+		// Enable once individually re-verified against the Python source.
+		// { new GoalReward(-0.75f), 100.f },                     // GoalRatioReward(bias=0.25)
+		// { new rl_rl::AcceleratedTouchReward(0.2f, 1.0f), 4.0f },
+		// { new rl_rl::InAirReward(), 0.4f },
+		// { new rl_rl::DemoReward(0.5f), 70.0f },
+		// { new rl_rl::SpeedBumpReward(), 15.0f },
+		// { new ShotReward(), 15.0f },
+		// { new SaveReward(), 20.0f },
+		// { new PickupBoostReward(), 15.0f },
+		// { new rl_rl::SupersonicSpeedReward(), 0.5f },
+		// { new rl_rl::DeltaDistToBallReward(), 5.0f },
+		// { new rl_rl::DeltaBallToGoalReward(), 5.0f },
 	};
 }
 
