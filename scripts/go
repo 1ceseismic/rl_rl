@@ -3,7 +3,8 @@
 #
 # Usage:
 #   scripts/go                 # pick checkpoint, build, train
-#   scripts/go -w              # pick checkpoint, render via rlviser
+#   scripts/go -w              # pick checkpoint, render via rlviser (5x by default)
+#   scripts/go -s 1.5          # render speed multiplier (sim ticks vs real time). Overrides rlviser UI slider at startup.
 #   scripts/go -c              # clean build first
 #   scripts/go -R              # reset ALL checkpoints (required after obs/action/net-arch change)
 #   scripts/go -n 4            # 4 envs (override GGL_NUM_GAMES)
@@ -25,6 +26,7 @@ NUM_GAMES="${GGL_NUM_GAMES:-36}"
 RUN_NAME="${GGL_RUN_NAME:-}"
 NO_METRICS=0   # wandb on by default; -M toggles off
 RENDER=0
+RENDER_SPEED=""
 CLEAN=0
 RESET=0
 NONINTERACTIVE=0
@@ -35,6 +37,7 @@ while [[ $# -gt 0 ]]; do
         -c|--clean) CLEAN=1; shift ;;
         -R|--reset) RESET=1; shift ;;
         -w|--render|--watch) RENDER=1; NUM_GAMES=${GGL_NUM_GAMES:-2}; shift ;;
+        -s|--speed) RENDER_SPEED="$2"; shift 2 ;;
         -n|--num-games) NUM_GAMES="$2"; shift 2 ;;
         -m|--metrics) NO_METRICS=0; shift ;;         # kept for compat; no-op now that default is on
         -M|--no-metrics) NO_METRICS=1; shift ;;
@@ -118,7 +121,14 @@ declare -a ENV_VARS=(
     "PATH=$ROOT:${PATH:-}"
 )
 [[ "$NO_METRICS" == "1" ]] && ENV_VARS+=("GGL_NO_METRICS=1")
-[[ "$RENDER"     == "1" ]] && ENV_VARS+=("GGL_RENDER=1")
+if [[ "$RENDER" == "1" ]]; then
+    ENV_VARS+=("GGL_RENDER=1")
+    # Default watch to 5x. Override with -s or GGL_RENDER_SPEED. The rlviser UI
+    # slider further overrides at runtime (polled each frame).
+    ENV_VARS+=("GGL_RENDER_SPEED=${RENDER_SPEED:-${GGL_RENDER_SPEED:-5.0}}")
+elif [[ -n "$RENDER_SPEED" ]]; then
+    ENV_VARS+=("GGL_RENDER_SPEED=$RENDER_SPEED")
+fi
 
 # Point the embedded Python interpreter at the venv's stdlib + site-packages.
 # The libpython3.12.so we link against has its install-time PYTHONHOME baked

@@ -14,6 +14,10 @@ we now own the fork (no upstream to contribute back to).
   derives from the C++17-deprecated / C++20-removed `std::iterator` helper
   and contains ill-formed `typename Model*` uses. Fix: replace the base
   class with explicit iterator trait typedefs and drop the `typename`.
+- `0003-rendersender-honor-ui-game-speed.patch` — `Util/RenderSender.cpp`
+  now polls the Python receiver's `get_game_speed()` each frame so the
+  rlviser UI's speed slider actually applies. Falls back silently to the
+  config-time `timeScale` when the Python side doesn't export it.
 
 ## Applying
 

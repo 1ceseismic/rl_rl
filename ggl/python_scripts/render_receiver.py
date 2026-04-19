@@ -24,6 +24,15 @@ rlviser.set_boost_pad_locations(BOOST_LOCATIONS)
 _packet_id = 0
 
 
+def get_game_speed() -> float:
+    """Polled by GGL's RenderSender each frame. Returns the rlviser UI
+    slider value so moving it actually speeds up / slows down the sim."""
+    try:
+        return float(rlviser.get_game_speed())
+    except Exception:
+        return 1.0
+
+
 def _vec(lst):
     return rsim.Vec(float(lst[0]), float(lst[1]), float(lst[2]))
 

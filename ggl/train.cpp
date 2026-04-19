@@ -171,7 +171,14 @@ int main(int argc, char* argv[]) {
 	cfg.metricsRunName = runName;
 
 	// ── Render ── Off for training. Set GGL_RENDER=1 for live rlviser.
+	// GGL_RENDER_SPEED sets the initial speed multiplier (e.g., 5.0 = 5x real
+	// time). Each frame the UI slider overrides this via get_game_speed() in
+	// render_receiver.py.
 	cfg.renderMode = std::getenv("GGL_RENDER") != nullptr;
+	if (const char* spEnv = std::getenv("GGL_RENDER_SPEED")) {
+		float sp = std::atof(spEnv);
+		if (sp > 0.001f) cfg.renderTimeScale = sp;
+	}
 
 	Learner* learner = new Learner(EnvCreateFunc, cfg, rl_rl::StepCallback);
 	learner->Start();
