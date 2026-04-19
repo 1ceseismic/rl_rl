@@ -154,8 +154,12 @@ int main(int argc, char* argv[]) {
 	cfg.checkpointsToKeep = 8;
 
 	// ── Metrics (wandb via python_scripts/metric_receiver.py) ──
-	cfg.sendMetrics = true;
-	cfg.addRewardsToMetrics = true;  // reward component breakdown shipped automatically
+	// Set GGL_NO_METRICS=1 for smoke runs without wandb. The embedded Python
+	// interpreter is selected at GGL build time; if it's the system Python
+	// (not the project venv), wandb may not be installed there and
+	// MetricSender::init() will abort the run.
+	cfg.sendMetrics = std::getenv("GGL_NO_METRICS") == nullptr;
+	cfg.addRewardsToMetrics = cfg.sendMetrics;  // reward component breakdown shipped automatically
 	cfg.metricsProjectName = "rlgym-learn";  // preserve wandb project from train.py
 	cfg.metricsGroupName = "1v1-training";
 	const char* runNameEnv = std::getenv("GGL_RUN_NAME");

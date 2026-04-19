@@ -16,6 +16,16 @@ if [[ -n "${TORCH_PATH:-}" ]]; then
     CMAKE_EXTRA+=("-DCMAKE_PREFIX_PATH=$TORCH_PATH")
 fi
 
+# Force GGL to embed the project's venv Python (which has wandb/torch) rather
+# than the system interpreter that CMake would otherwise pick by version.
+PY_EXE="${GGL_PYTHON:-$ROOT/.venv/bin/python}"
+if [[ -x "$PY_EXE" ]]; then
+    CMAKE_EXTRA+=("-DPython_EXECUTABLE=$PY_EXE" "-DPYTHON_EXECUTABLE=$PY_EXE")
+    echo "[build_ggl] Python_EXECUTABLE: $PY_EXE"
+else
+    echo "[build_ggl] WARNING: venv python not found at $PY_EXE — CMake will auto-pick. Set GGL_PYTHON to override."
+fi
+
 echo "[build_ggl] build dir: $BUILD_DIR"
 echo "[build_ggl] GGL_ROOT: $GGL_ROOT"
 echo "[build_ggl] BUILD_TYPE: $BUILD_TYPE"

@@ -133,7 +133,8 @@ public:
 		float dt = state.deltaTime;
 		if (dt <= 0.f) return 0.f;
 
-		float goalY = (player.team == RLGC::Team::BLUE)
+		// Team lives in RocketSim namespace (Framework.h does `using namespace RocketSim`).
+		float goalY = (player.team == Team::BLUE)
 			? RLGC::CommonValues::BACK_WALL_Y
 			: -RLGC::CommonValues::BACK_WALL_Y;
 		Vec goal(0.f, goalY, RLGC::CommonValues::GOAL_HEIGHT * 0.5f);

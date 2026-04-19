@@ -1,0 +1,21 @@
+diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Util/Timer.h w/GigaLearnCPP/src/public/GigaLearnCPP/Util/Timer.h
+index 6b0d7c2..e2593cf 100644
+--- i/GigaLearnCPP/src/public/GigaLearnCPP/Util/Timer.h
++++ w/GigaLearnCPP/src/public/GigaLearnCPP/Util/Timer.h
+@@ -11,13 +11,13 @@ namespace GGL {
+ 
+ 		// Returns elapsed time in seconds
+ 		double Elapsed() {
+-			auto endTime = std::chrono::high_resolution_clock::now();
++			auto endTime = std::chrono::steady_clock::now();
+ 			std::chrono::duration<double> elapsed = endTime - startTime;
+ 			return elapsed.count();
+ 		}
+ 
+ 		void Reset() {
+-			startTime = std::chrono::high_resolution_clock::now();
++			startTime = std::chrono::steady_clock::now();
+ 		}
+ 	};
+ }
+\ No newline at end of file

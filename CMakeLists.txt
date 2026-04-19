@@ -5,6 +5,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Required so RLGymCPP + RocketSim (static libs) can be linked into the
+# GigaLearnCPP shared lib. Without -fPIC, RocketSim's thread-local
+# randomness uses `local-exec` TLS and fails `R_X86_64_TPOFF32` on shared
+# objects.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # Output binaries to build/ so scripts/watch_ggl.py can find them predictably.
 set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")

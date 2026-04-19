@@ -97,37 +97,33 @@ scripts/watch_ggl.py
 - No checkpoint load flag — GGL auto-loads the latest in `checkpointFolder`.
   To resume from a specific timestep, rename the target dir to be the newest.
 
-## Build status (as of first port commit)
+## Build status
 
-The ported rl_rl code (`ggl/`) compiles past our own files cleanly with the
-two shims documented in `CMakeLists.txt` comments:
-1. Include-path workaround for `CommonValues.h`'s broken `../Framework.h`.
-2. Case-sensitivity shim for `EnvSet.h`'s `../OBSBuilders/OBSBuilder.h`.
+Builds and runs end-to-end on Linux. Smoke-tested:
+- 4-env, GPU (CUDA) training loop starts cleanly
+- PPO model allocates (1.2M params — 636k policy + 572k critic)
+- Obs size resolves to 89, action count to 126 (matches our ExpandedLookupAction)
+- First iteration completes and writes a checkpoint to `checkpoints_ggl/`
 
-The **leaked GGL source itself** does not compile cleanly on Linux with GCC
-15 or Clang 22. The following are real bugs in GGL's own code that MSVC
-silently accepts but other compilers reject:
+Required to make the leaked GGL source build on Linux — captured as patches
+in `ggl/_patches/` that must be applied once to the `GigaLearnCPP-Leak/`
+checkout:
 
-- **`GigaLearnCPP/src/public/GigaLearnCPP/Util/Timer.h:15,20`** — mixes
-  `system_clock::time_point` with `steady_clock::time_point` in arithmetic
-  and assignment. Fix: pick one clock type and use it throughout.
-- **`GigaLearnCPP/src/private/GigaLearnCPP/Util/Models.h:193,205`** —
-  iterator template nested-name lookup fails; likely missing `typename` or
-  a template dependency hint. Needs a more careful read of the surrounding
-  class template to fix.
+1. `0001-timer-use-steady-clock.patch` — `Util/Timer.h` mixed
+   `steady_clock::time_point` (field) with `high_resolution_clock::now()`
+   (assignment), which GCC/Clang reject.
+2. `0002-models-drop-deprecated-iterator.patch` — `Util/Models.h` used the
+   C++20-removed `std::iterator` base and malformed `typename Model*`.
 
-Until these are patched upstream (out of scope for this repo, which only
-hosts the rl_rl side of the port), `scripts/build_ggl.sh` will fail inside
-the `GigaLearnCPP` subtree after successfully configuring CMake and
-starting compilation. Our own `ggl/*.cpp` files were not yet reached by
-the failing build, but they were all written against the exact GGL APIs
-read from the headers (see the `ggl/include_verified/` comments in each
-header for the field names checked). Once GGL builds, the port should
-follow immediately; there are no guessed interfaces on our side.
+Two additional leaked-source bugs are handled via CMake workarounds that
+don't touch the out-of-repo tree:
 
-If you want to unblock the build:
-1. Apply the two upstream patches above to `GigaLearnCPP-Leak/` directly,
-   OR
-2. Check whether a newer, non-leaked GigaLearnCPP release exists and use it
-   via `-DGGL_ROOT=/path/to/good/source`, OR
-3. Build on Windows with MSVC, where the leaked source is known to work.
+- RLGymCPP `CommonValues.h` uses `#include "../Framework.h"` from the wrong
+  directory level. Worked around by adding `...src/RLGymCPP/Gamestates/` as
+  an include path so the preprocessor's fallback search resolves it.
+- RLGymCPP `EnvSet.h` includes `../OBSBuilders/OBSBuilder.h` with the wrong
+  case (actual dir is `ObsBuilders/`). Worked around by a forwarder header
+  at `ggl/_shim/OBSBuilders/OBSBuilder.h` plus an anchor include path.
+
+See `ggl/_patches/README.md` for application instructions and `CMakeLists.txt`
+comments for the shim details.
