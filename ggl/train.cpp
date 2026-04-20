@@ -37,12 +37,12 @@ static std::vector<WeightedReward> BuildRewards() {
 	// If training regresses, revert individual weights and continue from the
 	// branched checkpoint.
 	return {
-		// Movement — keep some, not much
-		{ new AirReward(), 0.10f },                                        // was 0.25
+		// Movement — keep phase-1 weight
+		{ new AirReward(), 0.25f },
 
-		// Player-ball — major peel-back; was dominating early-game behavior
+		// Player-ball — peel back Face, keep some ball-seeking
 		{ new FaceBallReward(), 0.05f },                                   // was 0.25
-		{ new VelocityPlayerToBallReward(), 1.5f },                        // was 4.0
+		{ new VelocityPlayerToBallReward(), 3.0f },                        // was 4.0
 		{ new StrongTouchReward(20, 100), 25.f },                          // was 60
 
 		// Ball-goal — purposeful, keep
