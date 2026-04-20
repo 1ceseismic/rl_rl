@@ -177,10 +177,16 @@ int main(int argc, char* argv[]) {
 	cfg.trainAgainstOldChance = 0.15f;
 
 	cfg.skillTracker.enabled = true;
-	cfg.skillTracker.updateInterval = 16;    // run rating matches every 16 iters
-	cfg.skillTracker.numArenas = 16;         // <= CPU thread count
-	cfg.skillTracker.simTime = 45;           // seconds per rating game
-	cfg.skillTracker.maxSimTime = 240;
+	// updateInterval: rating matches pause the collection thread while they
+	// run on numArenas for up to maxSimTime. At tsPerItr=100k, the previous
+	// value of 16 meant a pause every ~1.6M steps — the collection-rate
+	// chart on wandb showed periodic dips to 30k/0 sps. 128 pushes that out
+	// to every ~12.8M steps; still populates the Rating/<mode> series, but
+	// doesn't dominate wall-clock.
+	cfg.skillTracker.updateInterval = 128;
+	cfg.skillTracker.numArenas = 8;          // was 16 — half the eval-time compute
+	cfg.skillTracker.simTime = 30;           // was 45 — shorter match, less pause
+	cfg.skillTracker.maxSimTime = 180;       // was 240
 	cfg.skillTracker.ratingInc = 5;
 	cfg.skillTracker.initialRating = 0;      // relative system; offset in wandb if desired
 
