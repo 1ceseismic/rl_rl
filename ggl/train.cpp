@@ -31,26 +31,33 @@ using namespace RLGC;
 // can be re-enabled by uncommenting the block below — but they're known to
 // be rough ports and should not be trusted before re-auditing.
 static std::vector<WeightedReward> BuildRewards() {
+	// Phase 2 (applied @ ~500M steps): peel back bootstrap shaping, lean into
+	// the sparse goal signal now that basic ball interaction is learned.
+	// Previous (Phase 1 / GGL default) values are in the trailing comments.
+	// If training regresses, revert individual weights and continue from the
+	// branched checkpoint.
 	return {
-		// Movement
-		{ new AirReward(), 0.25f },
+		// Movement — keep some, not much
+		{ new AirReward(), 0.10f },                                        // was 0.25
 
-		// Player-ball
-		{ new FaceBallReward(), 0.25f },
-		{ new VelocityPlayerToBallReward(), 4.f },
-		{ new StrongTouchReward(20, 100), 60.f },
+		// Player-ball — major peel-back; was dominating early-game behavior
+		{ new FaceBallReward(), 0.05f },                                   // was 0.25
+		{ new VelocityPlayerToBallReward(), 1.5f },                        // was 4.0
+		{ new StrongTouchReward(20, 100), 25.f },                          // was 60
 
-		// Ball-goal
-		{ new ZeroSumReward(new VelocityBallToGoalReward(), 1.f), 2.0f },
+		// Ball-goal — purposeful, keep
+		{ new ZeroSumReward(new VelocityBallToGoalReward(), 1.f), 2.0f },  // unchanged
 
-		// Boost
+		// Boost — unchanged, economy still matters
 		{ new PickupBoostReward(), 10.f },
 		{ new SaveBoostReward(), 0.2f },
 
-		// Game events
+		// Game events — unchanged; already sparse so they won't dominate
 		{ new ZeroSumReward(new BumpReward(), 0.5f), 20.f },
 		{ new ZeroSumReward(new DemoReward(), 0.5f), 80.f },
-		{ new GoalReward(), 150.f },
+
+		// The real objective — make it more dominant
+		{ new GoalReward(), 250.f },                                       // was 150
 
 		// ── Project-specific rewards ported from rewards.py (DISABLED) ────
 		// Enable once individually re-verified against the Python source.
