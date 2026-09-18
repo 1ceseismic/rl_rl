@@ -5,9 +5,6 @@
 
 namespace rl_rl {
 
-// Port of mutators.py:RandomFieldMutator. Aggressive random state:
-// cars can be airborne, ball at full speed. This is the 40% branch of
-// the training mutator mix (the other 60% is KickoffState).
 class RandomFieldState : public RLGC::StateSetter {
 public:
 	void ResetArena(Arena* arena) override {
@@ -17,10 +14,8 @@ public:
 
 		constexpr float CAR_HEIGHT = 17.f;
 
-		// Reset boost pads etc.
 		arena->ResetToRandomKickoff();
 
-		// Ball: anywhere on field, 2000uu from goal lines, any height up to 70% ceiling
 		BallState bs = {};
 		bs.pos = Vec(
 			RandFloat(-CV::SIDE_WALL_X * 0.7f, CV::SIDE_WALL_X * 0.7f),
@@ -31,7 +26,6 @@ public:
 		bs.angVel = RandVec(Vec(-3, -3, -3), Vec(3, 3, 3));
 		arena->ball->SetState(bs);
 
-		// Cars: can be airborne, random orientation, random velocity and spin
 		for (Car* car : arena->_cars) {
 			CarState cs = {};
 			cs.pos = Vec(
@@ -41,9 +35,9 @@ public:
 			);
 
 			Angle angle(
-				RandFloat(-M_PI, M_PI),           // yaw
-				RandFloat(-M_PI * 0.5f, M_PI * 0.5f), // pitch
-				RandFloat(-M_PI, M_PI)            // roll
+				RandFloat(-M_PI, M_PI),
+				RandFloat(-M_PI * 0.5f, M_PI * 0.5f),
+				RandFloat(-M_PI, M_PI)
 			);
 			cs.rotMat = angle.ToRotMat();
 

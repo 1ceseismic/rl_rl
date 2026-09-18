@@ -1,13 +1,3 @@
-"""rlviser-backed render receiver for GGL.
-
-GGL's default render_receiver.py ships JSON over UDP to RocketSimVis on port
-9273. The rest of this project uses rlviser (Bevy-based, different binary
-protocol on a different port), so that receiver hits nothing and you get no
-window. This replacement parses GGL's JSON payload and forwards it via
-rlviser_py, which handles its own protocol + auto-launches the rlviser binary.
-
-Copied over GGL's default at build time — see scripts/build_ggl.sh.
-"""
 from __future__ import annotations
 
 import json
@@ -17,7 +7,7 @@ import rlviser_py as rlviser
 import RocketSim as rsim
 from rlgym.rocket_league.common_values import BOOST_LOCATIONS
 
-TICK_RATE = 120.0 / 8.0  # matches train.py:RLViserRenderer(tick_rate=120/8)
+TICK_RATE = 120.0 / 8.0
 
 rlviser.set_boost_pad_locations(BOOST_LOCATIONS)
 
@@ -25,14 +15,9 @@ _packet_id = 0
 
 
 def get_game_speed() -> float:
-    """Polled by GGL's RenderSender each frame. Returns the rlviser UI
-    slider value so moving it actually speeds up / slows down the sim."""
     try:
         return float(rlviser.get_game_speed())
-    except BaseException:
-        # BaseException (not Exception) because Python's embedded SIGINT
-        # handler raises KeyboardInterrupt on stray Ctrl-C in the terminal
-        # — letting that propagate to C++ crashes the training loop.
+    except BaseException:  # stray KeyboardInterrupt
         return 1.0
 
 
@@ -41,11 +26,7 @@ def _vec(lst):
 
 
 def _rotmat(phys):
-    # rsim.RotMat's 9-float constructor takes the basis vectors sequentially:
-    #   RotMat(fx, fy, fz,  rx, ry, rz,  ux, uy, uz)
-    # (verified empirically with distinct values). Passing row-major indices
-    # here shuffles every car's orientation and rlviser displays cars sliding
-    # across the field without rotating.
+    # sequential basis, not row-major
     f = phys["forward"]; r = phys["right"]; u = phys["up"]
     return rsim.RotMat(*f, *r, *u)
 
@@ -90,7 +71,6 @@ def render_state(state_json_str: str) -> None:
 
         ball = _ball_state(state["ball"])
 
-        # rlviser_py wants boost_pad_states as Sequence[bool]: True = available.
         pad_states = [bool(p) for p in state.get("boost_pads", [])]
 
         cars = []
@@ -108,11 +88,6 @@ def render_state(state_json_str: str) -> None:
             ball=ball,
             cars=cars,
         )
-    except BaseException:
-        # BaseException catches KeyboardInterrupt too. Python's embedded
-        # SIGINT handler raises it on any stray Ctrl-C (even accidental
-        # ones from terminal focus changes); bubbling that up to GGL's
-        # RenderSender::Send() turns it into RG_ERR_CLOSE → SIGABRT and
-        # kills the whole training run.
+    except BaseException:  # stray KeyboardInterrupt
         print("render_receiver: exception forwarding state to rlviser:")
         traceback.print_exc()

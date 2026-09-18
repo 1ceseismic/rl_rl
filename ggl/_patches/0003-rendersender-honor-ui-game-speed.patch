@@ -2,20 +2,17 @@ diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Util/RenderSender.cpp w/GigaLe
 index 8135610..617c0a0 100644
 --- i/GigaLearnCPP/src/public/GigaLearnCPP/Util/RenderSender.cpp
 +++ w/GigaLearnCPP/src/public/GigaLearnCPP/Util/RenderSender.cpp
-@@ -96,6 +96,17 @@ void GGL::RenderSender::Send(const GameState& state) {
+@@ -96,6 +96,14 @@ void GGL::RenderSender::Send(const GameState& state) {
  		RG_ERR_CLOSE("RenderSender: Failed to send gamestate, exception: " << e.what());
  	}
  
-+	// Honor the rlviser UI game-speed slider. If render_receiver doesn't
-+	// export get_game_speed() (e.g., the stock RocketSimVis receiver), we
-+	// keep using the timeScale the config was constructed with.
 +	try {
 +		if (pybind11::hasattr(pyMod, "get_game_speed")) {
 +			float uiSpeed = pyMod.attr("get_game_speed")().cast<float>();
 +			if (uiSpeed > 0.001f)
 +				timeScale = uiSpeed;
 +		}
-+	} catch (...) { /* ignore, keep previous timeScale */ }
++	} catch (...) {}
 +
  	// Delay
  	{

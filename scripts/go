@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Dev loop: rebuild (incremental) and run.
-#
-# Usage:
-#   scripts/go                 # pick checkpoint, build, train
-#   scripts/go -w              # pick checkpoint, render via rlviser (5x by default)
-#   scripts/go -s 1.5          # render speed multiplier (sim ticks vs real time). Overrides rlviser UI slider at startup.
-#   scripts/go -c              # clean build first
-#   scripts/go -R              # reset ALL checkpoints (required after obs/action/net-arch change)
-#   scripts/go -n 4            # 4 envs (override GGL_NUM_GAMES)
-#   scripts/go -M              # DISABLE wandb metrics (on by default; rl_rlbot entity)
-#   scripts/go --run-name foo  # skip picker, use this run name directly
-#   scripts/go -y              # skip picker, use 'default' (for CI / non-interactive)
-#   scripts/go build           # build only
-#   scripts/go run             # run only (no picker, no build)
 set -euo pipefail
+
+usage() {
+    cat <<EOF
+usage: scripts/go [opts] [build|run]
+  -w            watch in rlviser
+  -s SPEED      render speed
+  -c            clean build
+  -R            delete all checkpoints
+  -n N          num games
+  -M            disable wandb
+  -y            skip picker
+  --run-name N  use run name
+EOF
+}
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build-ggl"
@@ -24,13 +24,13 @@ TORCH_PATH="${TORCH_PATH:-$ROOT/.venv/lib/python3.12/site-packages/torch}"
 MESH_DIR="${GGL_MESH_DIR:-$ROOT/collision_meshes}"
 NUM_GAMES="${GGL_NUM_GAMES:-36}"
 RUN_NAME="${GGL_RUN_NAME:-}"
-NO_METRICS=0   # wandb on by default; -M toggles off
+NO_METRICS=0
 RENDER=0
 RENDER_SPEED=""
 CLEAN=0
 RESET=0
 NONINTERACTIVE=0
-ACTION=both   # both | build | run
+ACTION=both
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -39,13 +39,13 @@ while [[ $# -gt 0 ]]; do
         -w|--render|--watch) RENDER=1; NUM_GAMES=${GGL_NUM_GAMES:-2}; shift ;;
         -s|--speed) RENDER_SPEED="$2"; shift 2 ;;
         -n|--num-games) NUM_GAMES="$2"; shift 2 ;;
-        -m|--metrics) NO_METRICS=0; shift ;;         # kept for compat; no-op now that default is on
+        -m|--metrics) NO_METRICS=0; shift ;;
         -M|--no-metrics) NO_METRICS=1; shift ;;
         -y|--yes) NONINTERACTIVE=1; shift ;;
         --run-name) RUN_NAME="$2"; shift 2 ;;
         build) ACTION=build; shift ;;
         run) ACTION=run; shift ;;
-        -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \?//'; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
         *) echo "unknown arg: $1"; exit 2 ;;
     esac
 done
@@ -55,10 +55,6 @@ if [[ "$RESET" == "1" ]]; then
     rm -rf "$CKPT_ROOT"
 fi
 
-# ── Build ──────────────────────────────────────────────────────────────
-# Fast path: if the binary is newer than every source file we care about,
-# skip the build entirely. Saves ~1.7s on no-change reruns. Forced clean
-# skips this check.
 need_build() {
     [[ ! -x "$BINARY" ]] && return 0
     local newest
@@ -75,7 +71,7 @@ if [[ "$ACTION" != "run" ]]; then
     fi
     mkdir -p "$BUILD_DIR"
     if [[ "$CLEAN" == "1" ]] || need_build; then
-        echo "[go] building (output → $BUILD_DIR/.go_build.log)"
+        echo "[go] building (log: $BUILD_DIR/.go_build.log)"
         if ! TORCH_PATH="$TORCH_PATH" "$ROOT/scripts/build_ggl.sh" >"$BUILD_DIR/.go_build.log" 2>&1; then
             echo "[go] build failed. last 40 lines:"
             tail -40 "$BUILD_DIR/.go_build.log"
@@ -94,48 +90,32 @@ if [[ ! -x "$BINARY" ]]; then
     exit 1
 fi
 
-# ── Checkpoint picker ──────────────────────────────────────────────────
-# Skip when:
-#   - User passed --run-name explicitly
-#   - User passed -y (non-interactive)
-#   - "run" subcommand (bare run, no picker)
-#   - Not connected to a TTY
 if [[ -z "$RUN_NAME" && "$NONINTERACTIVE" == "0" && "$ACTION" != "run" && -t 0 ]]; then
     PICKER_MODE="--train"
     [[ "$RENDER" == "1" ]] && PICKER_MODE="--watch"
     PICKER_OUT=$("$ROOT/scripts/ckpt.py" --root "$CKPT_ROOT" "$PICKER_MODE") || {
         echo "[go] picker aborted."; exit 1
     }
-    # Picker prints one line: RUN_NAME=<name>
     eval "$PICKER_OUT"
 fi
 
 RUN_NAME="${RUN_NAME:-default}"
 
-# ── Run ────────────────────────────────────────────────────────────────
 declare -a ENV_VARS=(
     "GGL_MESH_DIR=$MESH_DIR"
     "GGL_NUM_GAMES=$NUM_GAMES"
     "GGL_RUN_NAME=$RUN_NAME"
-    # Add repo root to PATH so rlviser_py's posix_spawn finds ./rlviser.
     "PATH=$ROOT:${PATH:-}"
 )
 [[ "$NO_METRICS" == "1" ]] && ENV_VARS+=("GGL_NO_METRICS=1")
 if [[ "$RENDER" == "1" ]]; then
     ENV_VARS+=("GGL_RENDER=1")
-    # Default watch to 5x. Override with -s or GGL_RENDER_SPEED. The rlviser UI
-    # slider further overrides at runtime (polled each frame).
     ENV_VARS+=("GGL_RENDER_SPEED=${RENDER_SPEED:-${GGL_RENDER_SPEED:-5.0}}")
 elif [[ -n "$RENDER_SPEED" ]]; then
     ENV_VARS+=("GGL_RENDER_SPEED=$RENDER_SPEED")
 fi
 
-# Point the embedded Python interpreter at the venv's stdlib + site-packages.
-# The libpython3.12.so we link against has its install-time PYTHONHOME baked
-# in as /install (cpython build artifact), which doesn't exist at runtime. We
-# set PYTHONHOME to the uv-managed Python base_prefix so stdlib loads, and
-# PYTHONPATH to the venv's site-packages so rlviser_py / wandb / torch are
-# importable from the embedded interpreter.
+# embedded python uses venv
 PY_EXE="${GGL_PYTHON:-$ROOT/.venv/bin/python}"
 if [[ -x "$PY_EXE" ]]; then
     PY_HOME=$("$PY_EXE" -c 'import sys; print(sys.base_prefix)')
@@ -143,8 +123,6 @@ if [[ -x "$PY_EXE" ]]; then
     ENV_VARS+=("PYTHONHOME=$PY_HOME" "PYTHONPATH=$PY_SITE")
 fi
 
-# Default wandb entity to match the Python training setup (rl_rlbot).
-# Override by setting WANDB_ENTITY before invoking scripts/go.
 ENV_VARS+=("WANDB_ENTITY=${WANDB_ENTITY:-rl_rlbot}")
 
 echo "[go] running with: ${ENV_VARS[*]}"

@@ -14,7 +14,6 @@ void rl_rl::StepCallback(GGL::Learner* learner, const std::vector<RLGC::GameStat
 			report.AddAvg("Player/Demoed Ratio", player.isDemoed);
 			report.AddAvg("Player/Ball Touch Ratio", player.ballTouchedStep);
 
-			// Distance to ball
 			report.AddAvg("Player/Distance to Ball", (state.ball.pos - player.pos).Length());
 
 			if (player.ballTouchedStep) {
@@ -22,7 +21,6 @@ void rl_rl::StepCallback(GGL::Learner* learner, const std::vector<RLGC::GameStat
 				report.AddAvg("Game/Touch Speed", state.ball.vel.Length());
 			}
 
-			// Flip detection (transition from not-flipping to flipping)
 			if (player.prev && player.isFlipping && !player.prev->isFlipping) {
 				report.Add("Event/Flips", 1.0);
 			}
@@ -30,10 +28,8 @@ void rl_rl::StepCallback(GGL::Learner* learner, const std::vector<RLGC::GameStat
 
 		if (state.goalScored) {
 			report.AddAvg("Game/Goal Speed", state.ball.vel.Length());
-			// ball.pos.y at the moment of goal tells us who scored
-			// (ball ended up in the opposite team's goal)
 			if (state.ball.pos.y > 0) {
-				report.Add("Game/Blue Goals", 1.0);  // Blue scored in Orange goal
+				report.Add("Game/Blue Goals", 1.0);
 			} else {
 				report.Add("Game/Orange Goals", 1.0);
 			}

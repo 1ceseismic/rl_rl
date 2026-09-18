@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""Interactive GGL checkpoint picker.
-
-Layout: build-ggl/checkpoints_ggl/<run-name>/<timestep>/POLICY.lt,...
-
-Modes:
-  --train  Pick a run to continue, optionally branch to a new name.
-           If branching, copy latest checkpoint into the new run folder so
-           GGL's Learner::Load() finds it there as the sole checkpoint.
-  --watch  Pick a run to watch. No copy, no fresh option.
-
-Output on stdout (one line, `KEY=value`):
-  RUN_NAME=<chosen run name>
-
-All UI goes to stderr so stdout is clean for scripts/go to eval.
-"""
 from __future__ import annotations
 
 import argparse
@@ -29,7 +14,7 @@ from pathlib import Path
 class Run:
     name: str
     path: Path
-    latest_ts: int  # highest timestep subdir (by folder name)
+    latest_ts: int
     latest_path: Path
 
 
@@ -63,7 +48,6 @@ def prompt(msg: str, default: str = "") -> str:
 
 
 def pick(runs: list[Run], *, allow_fresh: bool) -> Run | None | str:
-    """Return a Run (continue/watch), None (fresh start), or 'quit' to abort."""
     hostname = socket.gethostname()
     print(f"\n{'=' * 60}", file=sys.stderr)
     print(f"  GGL Checkpoint Selection ({hostname})", file=sys.stderr)
@@ -78,7 +62,7 @@ def pick(runs: list[Run], *, allow_fresh: bool) -> Run | None | str:
     if default:
         print(f"  Enter = latest ({default.name})", file=sys.stderr)
     elif not allow_fresh:
-        print("  No runs found — nothing to watch.", file=sys.stderr)
+        print("  no runs found", file=sys.stderr)
         return "quit"
 
     choice = prompt("  > ")
@@ -90,7 +74,7 @@ def pick(runs: list[Run], *, allow_fresh: bool) -> Run | None | str:
         idx = int(choice) - 1
         if 0 <= idx < len(runs):
             return runs[idx]
-    print("  Invalid — using latest.", file=sys.stderr)
+    print("  invalid, using latest", file=sys.stderr)
     return default
 
 
@@ -100,23 +84,20 @@ def train_mode(root: Path) -> str:
     hostname = socket.gethostname()
 
     if picked is None:
-        # Fresh run
         default_name = f"{hostname}-{datetime.now():%m%d-%H%M}"
         name = prompt(f"  Run name? (Enter for '{default_name}')\n  > ", default_name)
         print(f"  -> fresh run: {name}\n", file=sys.stderr)
         return name
 
-    # Continue or branch from an existing run
     default_name = picked.name
     name = prompt(f"  Run name? (Enter to continue '{default_name}')\n  > ", default_name)
     if name == default_name:
         print(f"  -> continuing {name} ({picked.latest_ts:,} steps)\n", file=sys.stderr)
         return name
 
-    # Branching: copy latest checkpoint into new run folder
     new_run = root / name
     if new_run.exists():
-        print(f"  WARN: '{name}' already exists — NOT overwriting. Continuing that run.", file=sys.stderr)
+        print(f"  '{name}' exists, continuing it", file=sys.stderr)
         return name
     dst = new_run / picked.latest_path.name
     print(f"  -> branching: copying {picked.name}/{picked.latest_path.name} -> {name}/", file=sys.stderr)
