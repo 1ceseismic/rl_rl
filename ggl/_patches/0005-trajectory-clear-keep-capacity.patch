@@ -1,0 +1,21 @@
+diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+index 3403450..b268f51 100644
+--- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
++++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+@@ -486,7 +497,14 @@ void GGL::Learner::Start() {
+ 			std::vector<int32_t> actions;
+ 
+ 			void Clear() {
+-				*this = Trajectory();
++				// keep capacity
++				states.clear();
++				nextStates.clear();
++				rewards.clear();
++				logProbs.clear();
++				actionMasks.clear();
++				terminals.clear();
++				actions.clear();
+ 			}
+ 
+ 			void Append(const Trajectory& other) {
+

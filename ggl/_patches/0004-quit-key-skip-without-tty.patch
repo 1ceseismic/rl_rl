@@ -1,0 +1,29 @@
+diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+index 3403450..b268f51 100644
+--- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
++++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+@@ -15,6 +15,9 @@
+ #include <private/GigaLearnCPP/PolicyVersionManager.h>
+ 
+ #include "Util/KeyPressDetector.h"
++#ifndef _MSC_VER
++#include <unistd.h>
++#endif
+ #include <private/GigaLearnCPP/Util/WelfordStat.h>
+ #include "Util/AvgTracker.h"
+ 
+@@ -271,6 +274,14 @@ void GGL::Learner::Load() {
+ void GGL::Learner::StartQuitKeyThread(bool& quitPressed, std::thread& outThread) {
+ 	quitPressed = false;
+ 
++#ifndef _MSC_VER
++	// no tty: read spins
++	if (!isatty(STDIN_FILENO)) {
++		RG_LOG("Stdin is not a terminal, quit-key disabled");
++		return;
++	}
++#endif
++
+ 	RG_LOG("Press 'Q' to save and quit!");
+ 	outThread = std::thread(
+ 		[&] {
