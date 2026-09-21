@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT/build-ggl}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
+if [[ -z "${GGL_ROOT:-}" ]]; then
+    for p in "$ROOT/../GigaLearnCPP-Leak" "$HOME/code/_misc_repos/GigaLearnCPP-Leak" "$HOME/code/GigaLearnCPP-Leak"; do
+        [[ -f "$p/GigaLearnCPP/CMakeLists.txt" ]] && GGL_ROOT="$p" && break
+    done
+fi
 GGL_ROOT="${GGL_ROOT:-$ROOT/../GigaLearnCPP-Leak}"
 
 CMAKE_EXTRA=()

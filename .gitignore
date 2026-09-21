@@ -17,3 +17,5 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 .claude/
+build-prof/
+prof-out/
