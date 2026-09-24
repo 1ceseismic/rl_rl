@@ -1,0 +1,19 @@
+diff --git i/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp w/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp
+index 1d8f89f..1f0a08f 100644
+--- i/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp
++++ w/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp
+@@ -103,8 +103,12 @@ void GGL::PPOLearner::InferActionsFromModels(
+ 		if (outActions)
+ 			*outActions = action.flatten();
+ 	} else {
+-		auto action = torch::multinomial(probs, 1, true);
+-		auto logProb = torch::log(probs).gather(-1, action);
++		// gumbel-max, avoids multinomial asserts
++		auto logProbsAll = probs.log();
++		auto u = torch::rand_like(logProbsAll);
++		auto gumbel = -(-(u + 1e-20f).log() + 1e-20f).log();
++		auto action = (logProbsAll + gumbel).argmax(1, true);
++		auto logProb = logProbsAll.gather(-1, action);
+ 		if (outActions)
+ 			*outActions = action.flatten();
+ 

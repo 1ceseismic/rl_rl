@@ -1,8 +1,8 @@
 diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
-index 3403450..b268f51 100644
+index 3403450..f70c256 100644
 --- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
 +++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
-@@ -486,7 +497,14 @@ void GGL::Learner::Start() {
+@@ -486,7 +503,14 @@ void GGL::Learner::Start() {
  			std::vector<int32_t> actions;
  
  			void Clear() {
@@ -18,4 +18,3 @@ index 3403450..b268f51 100644
  			}
  
  			void Append(const Trajectory& other) {
-

@@ -1,0 +1,33 @@
+diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+index 3403450..f70c256 100644
+--- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
++++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+@@ -479,6 +490,12 @@ void GGL::Learner::Start() {
+ 
+ 		int numPlayers = envSet->state.numPlayers;
+ 
++		// pinned staging buffers
++		torch::Tensor pinnedObs = torch::empty({ numPlayers, obsSize },
++			torch::TensorOptions().dtype(torch::kFloat32).pinned_memory(true));
++		torch::Tensor pinnedMasks = torch::empty({ numPlayers, numActions },
++			torch::TensorOptions().dtype(torch::kUInt8).pinned_memory(true));
++
+ 		struct Trajectory {
+ 			FList states, nextStates, rewards, logProbs;
+ 			std::vector<uint8_t> actionMasks;
+@@ -604,8 +628,12 @@ void GGL::Learner::Start() {
+ 						}
+ 
+ 						torch::Tensor tActions, tLogProbs;
+-						torch::Tensor tStates = DIMLIST2_TO_TENSOR<float>(envSet->state.obs);
+-						torch::Tensor tActionMasks = DIMLIST2_TO_TENSOR<uint8_t>(envSet->state.actionMasks);
++						std::memcpy(pinnedObs.data_ptr<float>(), envSet->state.obs.data.data(),
++							sizeof(float) * envSet->state.obs.data.size());
++						std::memcpy(pinnedMasks.data_ptr<uint8_t>(), envSet->state.actionMasks.data.data(),
++							envSet->state.actionMasks.data.size());
++						torch::Tensor tStates = pinnedObs;
++						torch::Tensor tActionMasks = pinnedMasks;
+ 
+ 						if (!render) {
+ 							for (int newPlayerIdx : newPlayerIndices) {
+
