@@ -1,5 +1,5 @@
 diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
-index 3403450..f70c256 100644
+index 3403450..7cc7d52 100644
 --- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
 +++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
 @@ -15,6 +15,9 @@

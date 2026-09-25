@@ -1,0 +1,114 @@
+diff --git i/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp w/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp
+index 1f0a08f..e184b42 100644
+--- i/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp
++++ w/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.cpp
+@@ -1,5 +1,9 @@
+ #include "PPOLearner.h"
+ 
++#include <ATen/cuda/CUDAGeneratorImpl.h>
++#include <c10/cuda/CUDAStream.h>
++#include <c10/cuda/CUDAGuard.h>
++
+ #include <torch/nn/utils/convert_parameters.h>
+ #include <torch/nn/utils/clip_grad.h>
+ #include <torch/csrc/api/include/torch/serialize.h>
+@@ -121,6 +125,43 @@ void GGL::PPOLearner::InferActions(torch::Tensor obs, torch::Tensor actionMasks,
+ 	InferActionsFromModels(models ? *models : this->models, obs, actionMasks, config.deterministic, config.policyTemperature, config.useHalfPrecision, outActions, outLogProbs);
+ }
+ 
++void GGL::PPOLearner::InferActionsGraphed(torch::Tensor obs, torch::Tensor actionMasks,
++	torch::Tensor* outActions, torch::Tensor* outLogProbs) {
++
++	if (!inferGraph.captured || inferGraph.obs.size(0) != obs.size(0)) {
++		inferGraph.obs = torch::zeros_like(obs);
++		inferGraph.masks = torch::ones_like(actionMasks);
++
++		{
++			auto stream = c10::cuda::getStreamFromPool();
++			c10::cuda::CUDAStreamGuard guard(stream);
++
++			for (int i = 0; i < 3; i++)
++				InferActionsFromModels(models, inferGraph.obs, inferGraph.masks,
++					config.deterministic, config.policyTemperature, config.useHalfPrecision,
++					&inferGraph.actions, &inferGraph.logProbs);
++			stream.synchronize();
++
++			inferGraph.graph.register_generator_state(at::cuda::detail::getDefaultCUDAGenerator());
++			inferGraph.graph.capture_begin();
++			InferActionsFromModels(models, inferGraph.obs, inferGraph.masks,
++				config.deterministic, config.policyTemperature, config.useHalfPrecision,
++				&inferGraph.actions, &inferGraph.logProbs);
++			inferGraph.graph.capture_end();
++		}
++		inferGraph.captured = true;
++	}
++
++	inferGraph.obs.copy_(obs, true);
++	inferGraph.masks.copy_(actionMasks, true);
++	inferGraph.graph.replay();
++
++	if (outActions)
++		*outActions = inferGraph.actions;
++	if (outLogProbs)
++		*outLogProbs = inferGraph.logProbs;
++}
++
+ torch::Tensor GGL::PPOLearner::InferCritic(torch::Tensor obs) {
+ 
+ 	if (models["shared_head"])
+diff --git i/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.h w/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.h
+index 25d5a37..21a0d96 100644
+--- i/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.h
++++ w/GigaLearnCPP/src/private/GigaLearnCPP/PPO/PPOLearner.h
+@@ -13,6 +13,8 @@
+ 
+ #include "ExperienceBuffer.h"
+ 
++#include <ATen/cuda/CUDAGraph.h>
++
+ namespace GGL {
+ 
+ 	// https://github.com/AechPro/rlgym-ppo/blob/main/rlgym_ppo/ppo/ppo_learner.py
+@@ -39,6 +41,15 @@ namespace GGL {
+ 		
+ 		// If models is null, this->models will be used
+ 		void InferActions(torch::Tensor obs, torch::Tensor actionMasks, torch::Tensor* outActions, torch::Tensor* outLogProbs, ModelSet* models = NULL);
++
++		struct InferGraph {
++			at::cuda::CUDAGraph graph;
++			torch::Tensor obs, masks, actions, logProbs;
++			bool captured = false;
++		};
++		InferGraph inferGraph;
++		bool useInferGraph = false;
++		void InferActionsGraphed(torch::Tensor obs, torch::Tensor actionMasks, torch::Tensor* outActions, torch::Tensor* outLogProbs);
+ 		torch::Tensor InferCritic(torch::Tensor obs);
+ 
+ 		// Perhaps they should be somewhere else? Should probably make an inference interface...
+diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+index f70c256..f95580a 100644
+--- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
++++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
+@@ -490,6 +490,10 @@ void GGL::Learner::Start() {
+ 
+ 		int numPlayers = envSet->state.numPlayers;
+ 
++		// half prec makes graph stale
++		ppo->useInferGraph = std::getenv("GGL_INFER_GRAPH")
++			&& ppo->device.is_cuda() && !config.ppo.useHalfPrecision;
++
+ 		// pinned staging buffers
+ 		torch::Tensor pinnedObs = torch::empty({ numPlayers, obsSize },
+ 			torch::TensorOptions().dtype(torch::kFloat32).pinned_memory(true));
+@@ -664,7 +668,10 @@ void GGL::Learner::Start() {
+ 						} else {
+ 							torch::Tensor tdStates = tStates.to(ppo->device, true);
+ 							torch::Tensor tdActionMasks = tActionMasks.to(ppo->device, true);
+-							ppo->InferActions(tdStates, tdActionMasks, &tActions, &tLogProbs);
++							if (ppo->useInferGraph)
++								ppo->InferActionsGraphed(tdStates, tdActionMasks, &tActions, &tLogProbs);
++							else
++								ppo->InferActions(tdStates, tdActionMasks, &tActions, &tLogProbs);
+ 							tActions = tActions.cpu();
+ 						}
+ 						inferTime += inferTimer.Elapsed();

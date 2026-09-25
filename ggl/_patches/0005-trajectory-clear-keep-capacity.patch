@@ -1,8 +1,8 @@
 diff --git i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
-index 3403450..f70c256 100644
+index 7cc7d52..d9c7ad0 100644
 --- i/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
 +++ w/GigaLearnCPP/src/public/GigaLearnCPP/Learner.cpp
-@@ -486,7 +503,14 @@ void GGL::Learner::Start() {
+@@ -497,7 +497,14 @@ void GGL::Learner::Start() {
  			std::vector<int32_t> actions;
  
  			void Clear() {
