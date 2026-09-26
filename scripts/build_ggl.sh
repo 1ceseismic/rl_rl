@@ -5,11 +5,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT/build-ggl}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 if [[ -z "${GGL_ROOT:-}" ]]; then
-    for p in "$ROOT/../GigaLearnCPP-Leak" "$HOME/code/_misc_repos/GigaLearnCPP-Leak" "$HOME/code/GigaLearnCPP-Leak"; do
+    for p in "$ROOT/gigalearn" "$ROOT/../GigaLearnCPP-Leak"; do
         [[ -f "$p/GigaLearnCPP/CMakeLists.txt" ]] && GGL_ROOT="$p" && break
     done
 fi
-GGL_ROOT="${GGL_ROOT:-$ROOT/../GigaLearnCPP-Leak}"
+GGL_ROOT="${GGL_ROOT:-$ROOT/gigalearn}"
 
 CMAKE_EXTRA=()
 if [[ -n "${TORCH_PATH:-}" ]]; then

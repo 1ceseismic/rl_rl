@@ -23,7 +23,7 @@ DUR="${DUR:-90}"
 N="${N:-36}"
 WARMUP=3
 
-for p in "$ROOT/../GigaLearnCPP-Leak" "$HOME/code/_misc_repos/GigaLearnCPP-Leak" "$HOME/code/GigaLearnCPP-Leak"; do
+for p in "$ROOT/gigalearn" "$ROOT/../GigaLearnCPP-Leak"; do
     [[ -f "$p/GigaLearnCPP/CMakeLists.txt" ]] && GGL_ROOT="${GGL_ROOT:-$p}" && break
 done
 : "${GGL_ROOT:?gigalearn source not found, set GGL_ROOT}"

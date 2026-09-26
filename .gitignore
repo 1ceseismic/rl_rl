@@ -19,3 +19,6 @@ Makefile
 .claude/
 build-prof/
 prof-out/
+
+gigalearn/build*/
+build-vendor/

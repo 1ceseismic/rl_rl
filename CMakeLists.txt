@@ -11,10 +11,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 
-set(GGL_ROOT "${CMAKE_SOURCE_DIR}/../GigaLearnCPP-Leak" CACHE PATH "Path to GigaLearnCPP source root")
+set(GGL_ROOT "${CMAKE_SOURCE_DIR}/gigalearn" CACHE PATH "Path to GigaLearnCPP source root")
 
 if(NOT EXISTS "${GGL_ROOT}/GigaLearnCPP/CMakeLists.txt")
-    message(FATAL_ERROR "GGL_ROOT=${GGL_ROOT} does not contain GigaLearnCPP/. Set -DGGL_ROOT=/path/to/GigaLearnCPP-Leak.")
+    message(FATAL_ERROR "GGL_ROOT=${GGL_ROOT} does not contain GigaLearnCPP/.")
 endif()
 
 # resolves ../Framework.h include
